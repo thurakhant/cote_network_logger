@@ -18,11 +18,11 @@ A Flutter developer tool for monitoring HTTP network activity with a beautiful w
 
 ## Screenshots
 
-![Cote Network Logger Demo](https://github.com/thurakhant/cote_network_logger/blob/main/screenshots/side_by_side.png)
+![Cote Network Logger Demo](screenshots/side_by_side.png)
 
 | Mobile App | Dashboard |
 |------------|-----------|
-| ![Mobile Demo](https://github.com/thurakhant/cote_network_logger/blob/main/screenshots/mobile_demo.png) | ![Dashboard](https://github.com/thurakhant/cote_network_logger/blob/main/screenshots/dashboard.png) |
+| ![Mobile Demo](screenshots/mobile_demo.png) | ![Dashboard](screenshots/dashboard.png) |
 
 ## Quick Start
 
@@ -30,7 +30,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  cote_network_logger: ^1.0.2
+  cote_network_logger: ^1.0.4
 ```
 
 Start the server in your `main.dart`:

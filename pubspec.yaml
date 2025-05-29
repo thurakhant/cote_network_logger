@@ -1,6 +1,6 @@
 name: cote_network_logger
 description: Beautiful Flutter developer tool for real-time HTTP network monitoring with web dashboard
-version: 1.0.3
+version: 1.0.4
 homepage: https://github.com/thurakhant/cote_network_logger
 repository: https://github.com/thurakhant/cote_network_logger
 issue_tracker: https://github.com/thurakhant/cote_network_logger/issues
