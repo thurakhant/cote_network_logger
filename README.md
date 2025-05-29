@@ -18,11 +18,11 @@ A Flutter developer tool for monitoring HTTP network activity with a beautiful w
 
 ## Screenshots
 
-![Cote Network Logger Demo](https://raw.githubusercontent.com/thurakhant/cote_network_logger/main/screenshots/side_by_side.png)
+![Cote Network Logger Demo](https://github.com/thurakhant/cote_network_logger/blob/main/screenshots/side_by_side.png)
 
 | Mobile App | Dashboard |
 |------------|-----------|
-| ![Mobile Demo](https://raw.githubusercontent.com/thurakhant/cote_network_logger/main/screenshots/mobile_demo.png) | ![Dashboard](https://raw.githubusercontent.com/thurakhant/cote_network_logger/main/screenshots/dashboard.png) |
+| ![Mobile Demo](https://github.com/thurakhant/cote_network_logger/blob/main/screenshots/mobile_demo.png) | ![Dashboard](https://github.com/thurakhant/cote_network_logger/blob/main/screenshots/dashboard.png) |
 
 ## Quick Start
 
