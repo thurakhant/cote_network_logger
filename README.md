@@ -30,7 +30,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  cote_network_logger: ^1.0.0
+  cote_network_logger: ^1.0.2
 ```
 
 Start the server in your `main.dart`:
