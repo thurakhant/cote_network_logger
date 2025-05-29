@@ -18,9 +18,11 @@ A Flutter developer tool for monitoring HTTP network activity with a beautiful w
 
 ## Screenshots
 
+![Cote Network Logger Demo](https://raw.githubusercontent.com/thurakhant/cote_network_logger/main/screenshots/side_by_side.png)
+
 | Mobile App | Dashboard |
 |------------|-----------|
-| ![Mobile Demo](https://raw.githubusercontent.com/your-username/cote_network_logger/main/screenshots/mobile_demo.png) | ![Dashboard](https://raw.githubusercontent.com/your-username/cote_network_logger/main/screenshots/dashboard.png) |
+| ![Mobile Demo](https://raw.githubusercontent.com/thurakhant/cote_network_logger/main/screenshots/mobile_demo.png) | ![Dashboard](https://raw.githubusercontent.com/thurakhant/cote_network_logger/main/screenshots/dashboard.png) |
 
 ## Quick Start
 
@@ -53,7 +55,7 @@ import 'package:dio/dio.dart';
 import 'package:cote_network_logger/cote_network_logger.dart';
 
 final dio = Dio();
-dio.interceptors.add(const NetworkLoggerInterceptor());
+dio.interceptors.add(const CoteNetworkLogger());
 ```
 
 Open `http://localhost:3000` in your browser to see the dashboard!
@@ -79,7 +81,7 @@ class ApiService {
   
   ApiService() {
     // Add the network logger
-    _dio.interceptors.add(const NetworkLoggerInterceptor());
+    _dio.interceptors.add(const CoteNetworkLogger());
   }
   
   Future<Response> getPosts() {
@@ -103,7 +105,7 @@ class ApiService {
 
 ### Classes
 
-- `NetworkLoggerInterceptor` - Dio interceptor for capturing requests
+- `CoteNetworkLogger` - Dio interceptor for capturing requests
 - `NetworkLogStore` - Storage for network logs
 - `NetworkLogWebServer` - Web server for the dashboard
 
@@ -139,6 +141,26 @@ class ApiService {
 ## Contributing
 
 Pull requests are welcome! For major changes, please open an issue first.
+
+## Migration Guide
+
+### From v0.x.x to v1.0.0
+
+**Class Name Change:**
+The interceptor class has been renamed for consistency:
+- **Old:** `NetworkLoggerInterceptor`
+- **New:** `CoteNetworkLogger`
+
+Simply update your import usage:
+```dart
+// Before
+dio.interceptors.add(const NetworkLoggerInterceptor());
+
+// After  
+dio.interceptors.add(const CoteNetworkLogger());
+```
+
+All other functionality remains the same.
 
 ## License
 

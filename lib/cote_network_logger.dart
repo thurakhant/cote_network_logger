@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'web_server.dart';
 
 // Export all public components
-export 'interceptor.dart';
+export 'interceptor.dart'; // Contains CoteNetworkLogger class
 export 'log_store.dart';
 export 'web_server.dart';
 

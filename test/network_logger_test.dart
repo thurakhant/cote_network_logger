@@ -65,11 +65,11 @@ void main() {
     });
   });
 
-  group('NetworkLoggerInterceptor', () {
+  group('CoteNetworkLogger', () {
     test('should create interceptor instance', () {
-      const interceptor = NetworkLoggerInterceptor();
+      const interceptor = CoteNetworkLogger();
       expect(interceptor, isNotNull);
-      expect(interceptor, isA<NetworkLoggerInterceptor>());
+      expect(interceptor, isA<CoteNetworkLogger>());
     });
   });
 

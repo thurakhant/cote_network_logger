@@ -481,7 +481,7 @@ class ApiService {
     );
 
     // Add the network logger interceptor
-    _dio.interceptors.add(const NetworkLoggerInterceptor());
+    _dio.interceptors.add(const CoteNetworkLogger());
 
     // Add a basic logging interceptor for console output (optional)
     _dio.interceptors.add(

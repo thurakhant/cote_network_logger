@@ -1,20 +1,15 @@
 # Changelog
 
-## [1.0.0] - 2024-01-15
+## [1.0.0] - 2024-01-XX
 
 ### Added
 - Initial release of Cote Network Logger
-- `NetworkLoggerInterceptor` for capturing Dio HTTP requests and responses
-- `NetworkLogStore` for in-memory log storage (max 200 entries)
-- `NetworkLogWebServer` for local web dashboard
-- Real-time web dashboard with request/response details
-- Auto-refresh functionality
-- Status code highlighting
-- Request/response body display (10KB limit)
-- Clear logs functionality
-- Debug mode only operation
-- Example app with test scenarios
-- Complete API documentation
+- Web dashboard for viewing HTTP network logs in real-time
+- `CoteNetworkLogger` for capturing Dio HTTP requests and responses
+- Cross-platform support (iOS, Android, macOS, Windows, Linux)
+- Memory-safe logging with automatic cleanup
+- Debug-only functionality (completely disabled in release builds)
+- Local-only web server for security
 
 ### Features
 - HTTP activity tracking

@@ -5,8 +5,8 @@ import 'log_store.dart';
 
 /// Dio interceptor that captures HTTP requests for the network logger dashboard.
 /// Only works in debug mode.
-class NetworkLoggerInterceptor extends Interceptor {
-  const NetworkLoggerInterceptor();
+class CoteNetworkLogger extends Interceptor {
+  const CoteNetworkLogger();
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
