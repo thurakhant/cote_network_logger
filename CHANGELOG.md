@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.4] - 2024-01-XX
+
+### Fixed
+- Added screenshots as package assets for proper display on pub.dev
+- Screenshots now bundled with package instead of relying on external GitHub links
+
 ## [1.0.0] - 2024-01-XX
 
 ### Added
