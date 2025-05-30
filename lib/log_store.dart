@@ -1,8 +1,16 @@
-import 'dart:collection';
-import 'package:flutter/foundation.dart';
-
-/// Manages network logs in memory for the developer dashboard.
-/// Automatically limits storage and only works in debug mode.
+/// A simple in-memory store for network logs during development.
+///
+/// **Real-time Tracking Only:**
+/// - ✅ Keeps logs in memory for current session
+/// - ✅ Automatically cleans old logs (keeps last 100)
+/// - ✅ No persistent storage needed
+/// - ✅ Perfect for development monitoring
+///
+/// **Features:**
+/// - 🚀 Fast in-memory operations
+/// - 🔄 Auto-cleanup of old logs
+/// - 💾 Memory efficient
+/// - 📊 Real-time dashboard updates
 class NetworkLogStore {
   NetworkLogStore._internal();
   static final NetworkLogStore _instance = NetworkLogStore._internal();
@@ -10,54 +18,46 @@ class NetworkLogStore {
   /// Returns the singleton instance of NetworkLogStore.
   static NetworkLogStore get instance => _instance;
 
-  static const int _maxLogEntries = 200;
-  final Queue<Map<String, dynamic>> _logs = Queue<Map<String, dynamic>>();
+  /// In-memory storage for network logs
+  final List<Map<String, dynamic>> _logs = [];
 
-  /// Adds a new log entry. Removes old entries if limit exceeded.
+  /// Maximum number of logs to keep in memory
+  static const int _maxLogs = 100;
+
+  /// Adds a new network log entry.
   ///
-  /// [logEntry] The log data to store
-  void addLog(Map<String, dynamic> logEntry) {
-    if (!kDebugMode) return;
+  /// Automatically removes old logs if we exceed the maximum count.
+  /// This keeps memory usage reasonable during development.
+  void addLog(Map<String, dynamic> log) {
+    _logs.add({
+      ...log,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
 
-    // Handle duplicate IDs
-    final String originalId = logEntry['id']?.toString() ?? '';
-    String uniqueId = originalId;
-    int suffix = 0;
-
-    while (_logs.any((log) => log['id'] == uniqueId)) {
-      suffix++;
-      uniqueId = '${originalId}_dup$suffix';
-    }
-
-    if (suffix > 0) {
-      logEntry = Map<String, dynamic>.from(logEntry);
-      logEntry['id'] = uniqueId;
-    }
-
-    _logs.addLast(logEntry);
-
-    // Remove old entries if we exceed the limit
-    while (_logs.length > _maxLogEntries) {
-      _logs.removeFirst();
+    // Auto-cleanup: keep only the most recent logs
+    if (_logs.length > _maxLogs) {
+      final logsToRemove = _logs.length - _maxLogs;
+      _logs.removeRange(0, logsToRemove);
     }
   }
 
-  /// Returns all current log entries.
+  /// Returns all current logs in memory.
   ///
-  /// Returns an empty list if not in debug mode.
+  /// Returns logs in reverse chronological order (newest first).
   List<Map<String, dynamic>> getLogs() {
-    if (!kDebugMode) return [];
-    return _logs.toList();
+    return List.from(_logs.reversed);
   }
 
-  /// Clears all stored logs.
+  /// Clears all logs from memory.
   ///
-  /// Only clears logs in debug mode.
+  /// Useful for starting fresh during development.
   void clearLogs() {
-    if (!kDebugMode) return;
     _logs.clear();
   }
 
-  /// Returns the current number of stored logs.
-  int get logCount => kDebugMode ? _logs.length : 0;
+  /// Returns the current number of logs in memory.
+  int get logCount => _logs.length;
+
+  /// Returns whether the store has reached its maximum capacity.
+  bool get isFull => _logs.length >= _maxLogs;
 }

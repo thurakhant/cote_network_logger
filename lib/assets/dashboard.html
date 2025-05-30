@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Logger Dashboard</title>
+    <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="header">
+            <h1>🚀 coTe Network Dashboard</h1>
+            <p>Real-time HTTP activity monitoring</p>
+        </div>
+        
+        <div class="controls">
+            <div class="controls-row">
+                <div class="stats">
+                    <div class="stat">
+                        <strong id="logCount">0</strong> Total Logs
+                    </div>
+                    <div class="stat">
+                        <strong id="requestCount">0</strong> Requests
+                    </div>
+                    <div class="stat">
+                        <strong id="errorCount">0</strong> Errors
+                    </div>
+                    <div class="stat">
+                        Last updated: <span id="lastUpdated">Never</span>
+                    </div>
+                </div>
+                <div class="button-group">
+                    <button class="btn" onclick="refreshLogs()">
+                        🔄 Refresh
+                    </button>
+                    <button class="btn danger" onclick="clearLogs()">
+                        🗑️ Clear All
+                    </button>
+                </div>
+            </div>
+            <div class="search-filter">
+                <input type="text" class="search-input" id="searchInput" placeholder="🔍 Search URLs, methods, status codes...">
+                <select class="filter-select" id="methodFilter">
+                    <option value="">All Methods</option>
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                    <option value="PATCH">PATCH</option>
+                </select>
+                <select class="filter-select" id="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="2xx">2xx Success</option>
+                    <option value="4xx">4xx Client Error</option>
+                    <option value="5xx">5xx Server Error</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="container">
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Type</th>
+                            <th>Method</th>
+                            <th>URL</th>
+                            <th>Status</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTableBody">
+                        <tr>
+                            <td colspan="6" class="loading">🔄 Loading network logs...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>

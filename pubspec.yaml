@@ -24,6 +24,7 @@ dev_dependencies:
 
 flutter:
   assets:
+    - lib/assets/
     - screenshots/
 
 topics:
