@@ -1,5 +1,3 @@
-library cote_network_logger;
-
 import 'package:flutter/foundation.dart';
 import 'web_server.dart';
 

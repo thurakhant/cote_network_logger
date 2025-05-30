@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shelf/shelf.dart';
-import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'log_store.dart';
 import 'dart:async';
 
@@ -27,9 +26,6 @@ class NetworkLogWebServer {
 
   HttpServer? _server;
   bool _isRunning = false;
-
-  // Cache for loaded assets to avoid repeated file reads
-  final Map<String, String> _assetCache = {};
 
   // WebSocket clients
   final Set<WebSocket> _wsClients = <WebSocket>{};
