@@ -2,11 +2,95 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'log_store.dart';
+import 'web_server.dart';
 
-/// Dio interceptor that captures HTTP requests for the network logger dashboard.
-/// Only works in debug mode.
+/// Dio interceptor that captures HTTP requests and responses for the network logger dashboard.
+/// Provides manual logging and dashboard server control. Only works in debug mode.
 class CoteNetworkLogger extends Interceptor {
   const CoteNetworkLogger();
+
+  /// Start the web dashboard server for real-time monitoring.
+  /// Returns true if the server started successfully.
+  Future<bool> startDashboard() async {
+    return await NetworkLogWebServer.instance.start();
+  }
+
+  /// Get the dashboard URL.
+  String get dashboardUrl => NetworkLogWebServer.instance.dashboardUrl;
+
+  /// Check if the dashboard server is running.
+  bool get isDashboardRunning => NetworkLogWebServer.instance.isRunning;
+
+  /// Check if the web server is supported on this platform.
+  bool get isWebServerSupported => NetworkLogWebServer.isPlatformSupported;
+
+  /// Manually log an HTTP request (for non-Dio requests).
+  void logRequest({
+    required String id,
+    required String url,
+    required String method,
+    Map<String, dynamic>? headers,
+    dynamic requestBody,
+  }) {
+    if (!kDebugMode) return;
+    final logEntry = {
+      'id': id,
+      'type': 'request',
+      'timestamp': DateTime.now().toIso8601String(),
+      'method': method.toUpperCase(),
+      'url': url,
+      'headers': headers ?? {},
+      'requestBody': _sanitizeBody(requestBody),
+    };
+    NetworkLogStore.instance.addLog(logEntry);
+  }
+
+  /// Manually log an HTTP response (for non-Dio responses).
+  void logResponse({
+    required String id,
+    required String url,
+    required String method,
+    required int statusCode,
+    Map<String, dynamic>? headers,
+    dynamic responseBody,
+  }) {
+    if (!kDebugMode) return;
+    final logEntry = {
+      'id': id,
+      'type': 'response',
+      'timestamp': DateTime.now().toIso8601String(),
+      'method': method.toUpperCase(),
+      'url': url,
+      'statusCode': statusCode,
+      'headers': headers ?? {},
+      'responseBody': _sanitizeBody(responseBody),
+      'responseSize': _calculateResponseSize(responseBody),
+    };
+    NetworkLogStore.instance.addLog(logEntry);
+  }
+
+  /// Manually log an HTTP error (for non-Dio errors).
+  void logError({
+    required String id,
+    required String url,
+    required String method,
+    required String error,
+    String? stackTrace,
+    int? statusCode,
+  }) {
+    if (!kDebugMode) return;
+    final logEntry = {
+      'id': id,
+      'type': 'error',
+      'timestamp': DateTime.now().toIso8601String(),
+      'method': method.toUpperCase(),
+      'url': url,
+      'errorMessage': error,
+      'stackTrace': stackTrace,
+      'statusCode': statusCode,
+    };
+    NetworkLogStore.instance.addLog(logEntry);
+  }
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {

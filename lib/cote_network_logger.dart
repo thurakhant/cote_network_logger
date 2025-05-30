@@ -95,3 +95,18 @@ String? getNetworkLogDashboardUrl() {
 bool isNetworkLoggerSupported() {
   return NetworkLogWebServer.isPlatformSupported;
 }
+
+/// Starts the web dashboard server for real-time monitoring.
+///
+/// Returns true if the server started successfully, false otherwise.
+/// The dashboard will be available at http://localhost:3000 (for emulators)
+/// or http://YOUR_DEVICE_IP:3000 (for physical devices).
+Future<bool> startDashboard() async {
+  return await NetworkLogWebServer.instance.start();
+}
+
+/// Returns the URL where the dashboard is accessible.
+String get dashboardUrl => NetworkLogWebServer.instance.dashboardUrl;
+
+/// Returns whether the dashboard server is currently running.
+bool get isDashboardRunning => NetworkLogWebServer.instance.isRunning;

@@ -1,25 +1,26 @@
 import 'dart:collection';
 import 'package:flutter/foundation.dart';
+import 'web_server.dart';
 
-/// Manages network logs in memory for the developer dashboard.
-/// Automatically limits storage and only works in debug mode.
+/// Stores network logs in memory for the developer dashboard.
+/// Only works in debug mode and limits storage to recent entries.
 class NetworkLogStore {
   NetworkLogStore._internal();
   static final NetworkLogStore _instance = NetworkLogStore._internal();
 
-  /// Returns the singleton instance of NetworkLogStore.
+  /// Singleton instance
   static NetworkLogStore get instance => _instance;
 
   static const int _maxLogEntries = 200;
   final Queue<Map<String, dynamic>> _logs = Queue<Map<String, dynamic>>();
 
-  /// Adds a new log entry. Removes old entries if limit exceeded.
+  /// Add a new log entry. Removes oldest if limit exceeded.
   ///
   /// [logEntry] The log data to store
   void addLog(Map<String, dynamic> logEntry) {
     if (!kDebugMode) return;
 
-    // Handle duplicate IDs
+    // Ensure unique log ID
     final String originalId = logEntry['id']?.toString() ?? '';
     String uniqueId = originalId;
     int suffix = 0;
@@ -40,9 +41,12 @@ class NetworkLogStore {
     while (_logs.length > _maxLogEntries) {
       _logs.removeFirst();
     }
+
+    // Broadcast to WebSocket clients for real-time dashboard updates
+    NetworkLogWebServer.instance.broadcastLog(logEntry);
   }
 
-  /// Returns all current log entries.
+  /// Get all current log entries.
   ///
   /// Returns an empty list if not in debug mode.
   List<Map<String, dynamic>> getLogs() {
@@ -50,7 +54,7 @@ class NetworkLogStore {
     return _logs.toList();
   }
 
-  /// Clears all stored logs.
+  /// Clear all stored logs.
   ///
   /// Only clears logs in debug mode.
   void clearLogs() {
@@ -58,6 +62,6 @@ class NetworkLogStore {
     _logs.clear();
   }
 
-  /// Returns the current number of stored logs.
+  /// Get the current number of stored logs.
   int get logCount => kDebugMode ? _logs.length : 0;
 }

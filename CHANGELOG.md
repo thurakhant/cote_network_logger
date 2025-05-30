@@ -1,12 +1,6 @@
 # Changelog
 
-## [1.0.4] - 2024-01-XX
-
-### Fixed
-- Added screenshots as package assets for proper display on pub.dev
-- Screenshots now bundled with package instead of relying on external GitHub links
-
-## [1.0.0] - 2024-01-XX
+## [1.0.0] - 2024-01-15
 
 ### Added
 - Initial release of Cote Network Logger
@@ -32,3 +26,17 @@
 - No external communication
 - Memory-only storage
 - Automatic cleanup 
+
+## [1.0.4] - 2024-01-20
+
+### Fixed
+- Added screenshots as package assets for proper display on pub.dev
+- Screenshots now bundled with package instead of relying on external GitHub links 
+
+## [1.0.5] - 2025-05-31
+
+### Changed
+- Updated documentation to prioritize simple Dio setup in Quick Start
+- Improved onboarding instructions for new users
+- Updated and added dashboard screenshots
+- Clarified advanced/manual logging and HTTP package interceptor usage 

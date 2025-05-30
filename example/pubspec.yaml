@@ -11,8 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
   dio: ^5.4.0
-  cote_network_logger:
-    path: ../
+  cote_network_logger: ^1.0.4
 
 dev_dependencies:
   flutter_test:

@@ -1,10 +1,10 @@
-// ignore_for_file: undefined_name, argument_type_not_assignable, undefined_method, too_many_positional_arguments
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'log_store.dart';
+import 'dart:async';
 
 /// A local web server that provides a dashboard for viewing network logs.
 ///
@@ -22,11 +22,17 @@ class NetworkLogWebServer {
   /// Returns the singleton instance of NetworkLogWebServer.
   static NetworkLogWebServer get instance => _instance;
 
-  static const String _host = 'localhost';
+  static const String _host = '0.0.0.0';
   static const int _port = 3000;
 
   HttpServer? _server;
   bool _isRunning = false;
+
+  // Cache for loaded assets to avoid repeated file reads
+  final Map<String, String> _assetCache = {};
+
+  // WebSocket clients
+  final Set<WebSocket> _wsClients = <WebSocket>{};
 
   /// Checks if the current platform supports the web server.
   static bool get isPlatformSupported {
@@ -46,43 +52,92 @@ class NetworkLogWebServer {
   /// Starts the web server if not already running.
   ///
   /// Only starts in debug mode and on supported platforms. The server will be available at:
-  /// http://localhost:3000
+  /// - **Android Emulator**: http://localhost:3000 (from host Mac browser)
+  /// - **Physical Android**: http://YOUR_DEVICE_IP:3000 (find IP in device settings)
+  /// - **iOS Simulator**: http://localhost:3000 (from host Mac browser)
+  /// - **Physical iOS**: http://YOUR_DEVICE_IP:3000 (find IP in device settings)
+  /// - **Desktop**: http://localhost:3000
+  ///
+  /// **Dashboard Features:**
+  /// - 🚀 Real-time network monitoring
+  /// - 📊 Beautiful Material Design interface
+  /// - 🔍 Advanced filtering and search
+  /// - 📱 Mobile-responsive design
+  /// - ⚡ Fast performance with minimal load time
   ///
   /// Returns true if the server started successfully, false otherwise.
   Future<bool> start() async {
-    if (!kDebugMode) {
-      debugPrint('⚠️ NetworkLogWebServer: Not starting - not in debug mode');
-      return false;
-    }
-
-    if (!isPlatformSupported) {
-      if (kIsWeb) {
-        debugPrint('⚠️ NetworkLogWebServer: Web platform detected - server not supported');
-        debugPrint('💡 Web browsers don\'t support ServerSocket.bind for security reasons');
-        debugPrint('💡 Use console logs or browser DevTools for web debugging');
-      } else {
-        debugPrint('⚠️ NetworkLogWebServer: Platform not supported');
-      }
-      return false;
-    }
-
-    if (_isRunning) {
-      debugPrint('⚠️ NetworkLogWebServer: Already running');
-      return false;
-    }
+    if (!kDebugMode) return false;
+    if (!isPlatformSupported) return false;
+    if (_isRunning) return false;
 
     try {
       debugPrint('🚀 NetworkLogWebServer: Starting server on $_host:$_port...');
       final handler = _createHandler();
-      _server = await shelf_io.serve(handler, _host, _port);
+      _server = await HttpServer.bind(_host, _port);
       _isRunning = true;
-      debugPrint('✅ NetworkLogWebServer: Server started successfully on $_host:$_port');
+
+      _server!.listen((HttpRequest request) async {
+        if (request.uri.path == '/ws' && WebSocketTransformer.isUpgradeRequest(request)) {
+          final socket = await WebSocketTransformer.upgrade(request);
+          _wsClients.add(socket);
+          socket.add(jsonEncode({
+            'type': 'init',
+            'logs': NetworkLogStore.instance.getLogs(),
+          }));
+          socket.done.then((_) => _wsClients.remove(socket));
+          return;
+        }
+        // Convert HttpHeaders to Map<String, String>
+        final headers = <String, String>{};
+        request.headers.forEach((name, values) {
+          if (values.isNotEmpty) headers[name] = values.join(',');
+        });
+        final shelfRequest = Request(
+          request.method,
+          request.requestedUri,
+          headers: headers,
+          body: request,
+          context: {'shelf.io.request': request},
+        );
+        final shelfResponse = await handler(shelfRequest);
+        // Write shelf response to HttpResponse
+        request.response.statusCode = shelfResponse.statusCode;
+        shelfResponse.headers.forEach((name, value) {
+          request.response.headers.set(name, value);
+        });
+        await shelfResponse.read().forEach(request.response.add);
+        await request.response.close();
+      });
+
+      _printAccessInstructions();
       return true;
     } catch (e) {
       debugPrint('❌ NetworkLogWebServer: Failed to start server: $e');
       _isRunning = false;
       return false;
     }
+  }
+
+  /// Prints platform-specific instructions for accessing the dashboard.
+  void _printAccessInstructions() {
+    debugPrint('✅ NetworkLogWebServer: Server started successfully!');
+    debugPrint('');
+    debugPrint('🌐 ACCESS DASHBOARD:');
+
+    if (Platform.isAndroid) {
+      debugPrint('📱 Android Emulator: Open http://10.0.2.2:3000 in the emulator browser.');
+      debugPrint('📱 Physical Android Device: Open http://YOUR_MAC_IP:3000 in Chrome (find your Mac IP in System Preferences > Network).');
+    } else if (Platform.isIOS) {
+      debugPrint('📱 iOS Simulator: Open http://localhost:3000 in your Mac browser.');
+      debugPrint('📱 Physical iOS Device: Open http://YOUR_MAC_IP:3000 in Safari/Chrome (find your Mac IP in System Preferences > Network).');
+    } else {
+      debugPrint('💻 Desktop: Open http://localhost:3000 in your browser.');
+    }
+
+    debugPrint('');
+    debugPrint('🎨 Features: Real-time monitoring, beautiful UI, filtering, search');
+    debugPrint('🔥 Make HTTP requests in your app to see them appear!');
   }
 
   /// Stops the web server if running.
@@ -98,14 +153,38 @@ class NetworkLogWebServer {
   bool get isRunning => _isRunning;
 
   /// Returns the URL where the dashboard is accessible.
-  String get dashboardUrl => 'http://$_host:$_port';
+  String get dashboardUrl {
+    if (Platform.isAndroid) {
+      return 'http://10.0.2.2:3000 (emulator) or http://YOUR_MAC_IP:3000 (physical device)';
+    } else if (Platform.isIOS) {
+      return 'http://localhost:3000 (simulator) or http://YOUR_MAC_IP:3000 (physical device)';
+    }
+    return 'http://localhost:$_port';
+  }
+
+  /// Broadcasts a new log entry to all connected WebSocket clients.
+  void broadcastLog(Map<String, dynamic> logEntry) {
+    if (!kDebugMode || _wsClients.isEmpty) return;
+
+    final message = jsonEncode({
+      'type': 'log',
+      'log': logEntry,
+    });
+
+    for (final client in _wsClients) {
+      try {
+        client.add(message);
+      } catch (e) {
+        debugPrint('❌ NetworkLogWebServer: Failed to broadcast to client: $e');
+        _wsClients.remove(client);
+      }
+    }
+  }
 
   /// Creates the main request handler for the server.
   Handler _createHandler() {
-    // Create cascade to handle both static files and API endpoints
     final staticHandler = _createStaticHandler();
     final apiHandler = _createApiHandler();
-
     return Cascade().add(apiHandler).add(staticHandler).handler;
   }
 
@@ -821,7 +900,7 @@ class NetworkLogWebServer {
 <body>
     <div class="dashboard-container">
         <div class="header">
-            <h1>🚀 coTe Network Dashboard</h1>
+            <h1>🚀 coTe Network Dashboard <span id="wsStatus" style="font-size:16px;vertical-align:middle;margin-left:12px;"><span id="wsDot" style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#e53e3e;margin-right:6px;"></span><span id="wsText">Offline</span></span></h1>
             <p>Real-time HTTP activity monitoring</p>
         </div>
         
@@ -912,6 +991,72 @@ class NetworkLogWebServer {
     let lastDataHash = '';
     let consecutiveNoChanges = 0;
     let forceNextUpdate = false;
+    let ws = null;
+    let wsConnected = false;
+    let wsReconnectTimeout = null;
+
+    function updateWsStatus() {
+        const wsDot = document.getElementById('wsDot');
+        const wsText = document.getElementById('wsText');
+        if (wsConnected) {
+            if (wsDot) wsDot.style.background = '#38a169';
+            if (wsText) wsText.textContent = 'Live';
+        } else {
+            if (wsDot) wsDot.style.background = '#e53e3e';
+            if (wsText) wsText.textContent = 'Offline';
+        }
+    }
+
+    // --- WebSocket Real-Time Updates ---
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsUrl = `${protocol}://${window.location.host}/ws`;
+        console.log('🌐 Connecting to WebSocket:', wsUrl);
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            wsConnected = true;
+            updateWsStatus();
+            console.log('✅ WebSocket connected! Real-time updates enabled.');
+            if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'init') {
+                    logs = msg.logs || [];
+                    console.log('🟢 [WS] Received init with', logs.length, 'logs');
+                    processLogs();
+                    updateDisplay();
+                } else if (msg.type === 'log') {
+                    // Insert new log at the top
+                    logs.unshift(msg.log);
+                    console.log('🟢 [WS] Received new log:', msg.log);
+                    processLogs();
+                    updateDisplay();
+                }
+            } catch (e) {
+                console.error('❌ Error parsing WebSocket message:', e);
+            }
+        };
+
+        ws.onclose = () => {
+            wsConnected = false;
+            updateWsStatus();
+            console.warn('⚠️ WebSocket closed. Attempting to reconnect in 3s...');
+            wsReconnectTimeout = setTimeout(connectWebSocket, 3000);
+        };
+
+        ws.onerror = (err) => {
+            wsConnected = false;
+            updateWsStatus();
+            console.error('❌ WebSocket error:', err);
+            ws.close();
+        };
+    }
+
+    // --- End WebSocket ---
 
     // Track user interaction to pause auto-refresh (much less aggressive)
     function setUserInteracting() {
@@ -922,68 +1067,42 @@ class NetworkLogWebServer {
             console.log('🔄 User interaction ended, resuming auto-refresh');
             // Immediately refresh after user stops interacting
             forceNextUpdate = true;
-            loadLogs();
-        }, 1000); // Reduced from 2 seconds to 1 second
+            if (!wsConnected) loadLogs();
+        }, 1000);
     }
 
-    // Load logs immediately when page loads
+    // Load logs immediately when page loads (fallback for polling)
     async function loadLogs() {
-        // Only skip refresh if user is actively typing/clicking AND we haven't forced an update
+        if (wsConnected) return; // Don't poll if WebSocket is active
         if (userInteracting && consecutiveNoChanges < 2 && !forceNextUpdate) {
             console.log('⏸️ Skipping refresh - user is actively interacting');
             return;
         }
-
         console.log('📡 Loading logs from API...');
         try {
-            // Add cache busting to prevent browser caching
             const cacheBuster = `?t=${Date.now()}&r=${Math.random()}`;
             const response = await fetch(`/logs${cacheBuster}`);
-            console.log('📡 Response status:', response.status);
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-            
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const data = await response.json();
-            
-            // Create a hash of the data to detect changes
             const currentDataHash = JSON.stringify(data.logs);
-            
-            // Force update if requested or if data actually changed
             if (forceNextUpdate || currentDataHash !== lastDataHash) {
-                if (forceNextUpdate) {
-                    console.log('🔄 Forced update triggered');
-                    forceNextUpdate = false;
-                } else {
-                    console.log('📊 Data changed, updating display');
-                }
-                
+                if (forceNextUpdate) forceNextUpdate = false;
                 consecutiveNoChanges = 0;
                 lastDataHash = currentDataHash;
                 logs = data.logs || [];
-                console.log('📝 Total logs:', logs.length);
-                
                 processLogs();
                 updateDisplay();
                 return;
             }
-            
             consecutiveNoChanges++;
-            console.log('📊 No data changes detected, consecutive:', consecutiveNoChanges);
-            
-            // If no changes for a while, force update to ensure UI is current
-            if (consecutiveNoChanges >= 3) { // Reduced from 5 to 3
-                console.log('🔄 Forcing update after no changes');
+            if (consecutiveNoChanges >= 3) {
                 lastDataHash = '';
                 consecutiveNoChanges = 0;
                 forceNextUpdate = true;
-                // Don't return, let it process the data
                 logs = data.logs || [];
                 processLogs();
                 updateDisplay();
             }
-            
         } catch (error) {
             console.error('❌ Error loading logs:', error);
             showError('Failed to load logs: ' + error.message);
@@ -1008,11 +1127,9 @@ class NetworkLogWebServer {
             if (log.type === 'request') {
                 // Every request gets its own unique transaction using the log ID
                 const transactionId = `req_${log.id}`;
-                
                 if (requestTransactions.has(transactionId)) {
                     console.warn('⚠️ Duplicate request transaction ID:', transactionId);
                 }
-                
                 requestTransactions.set(transactionId, {
                     id: transactionId,
                     url: log.url,
@@ -1024,7 +1141,6 @@ class NetworkLogWebServer {
                     requestTimestamp: log.timestamp,
                     logId: log.id
                 });
-                
                 console.log('➕ Created transaction for request:', transactionId, log.method, log.url);
             } else {
                 // Collect responses and errors for pairing
@@ -1093,6 +1209,10 @@ class NetworkLogWebServer {
         
         allTransactions = Array.from(requestTransactions.values())
             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        // --- Preserve expandedRows ---
+        const currentIds = new Set(allTransactions.map(t => t.id));
+        expandedRows = new Set([...expandedRows].filter(id => currentIds.has(id)));
         
         // Apply current filters
         applyFilters();
@@ -1427,49 +1547,25 @@ class NetworkLogWebServer {
     // Initialize everything when page loads
     document.addEventListener('DOMContentLoaded', function() {
         console.log('📄 DOM loaded, initializing...');
-        
-        // Set up event listeners with minimal interaction detection
+        // Set up event listeners
         const searchInput = document.getElementById('searchInput');
         const methodFilter = document.getElementById('methodFilter');
         const statusFilter = document.getElementById('statusFilter');
-        
         if (searchInput) {
             searchInput.addEventListener('input', filterTransactions);
-            // Only pause on actual typing in search box
             searchInput.addEventListener('input', setUserInteracting);
         }
-        if (methodFilter) {
-            methodFilter.addEventListener('change', filterTransactions);
-            // Don't pause on dropdown clicks
-        }
-        if (statusFilter) {
-            statusFilter.addEventListener('change', filterTransactions);
-            // Don't pause on dropdown clicks
-        }
-        
-        // Load initial data
-        loadLogs();
-        
-        // Fast auto-refresh every 1 second for good reactivity without race conditions
+        if (methodFilter) methodFilter.addEventListener('change', filterTransactions);
+        if (statusFilter) statusFilter.addEventListener('change', filterTransactions);
+        // Try to connect WebSocket
+        connectWebSocket();
+        // Fallback polling if WebSocket is not available
         setInterval(() => {
-            console.log('⏰ Auto-refresh interval...');
-            loadLogs();
-        }, 1000);
-        
-        // Additional rapid refresh for new data (every 500ms for first 2 minutes)
-        let rapidRefreshCount = 0;
-        const rapidRefresh = setInterval(() => {
-            if (rapidRefreshCount >= 240) { // Stop rapid refresh after 2 minutes (240 * 500ms)
-                clearInterval(rapidRefresh);
-                console.log('🏁 Stopping rapid refresh mode');
-                return;
+            if (!wsConnected) {
+                console.log('⏰ Polling fallback (WebSocket not connected)...');
+                loadLogs();
             }
-            
-            // Always refresh during rapid mode
-            console.log('⚡ Rapid refresh...');
-            loadLogs();
-            rapidRefreshCount++;
-        }, 500); // Fast 500ms updates
+        }, 2000);
     });
 
     console.log('✅ Network Logger Dashboard JavaScript Loaded!');
