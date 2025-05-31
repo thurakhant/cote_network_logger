@@ -882,7 +882,7 @@ class DashboardTemplate {
 <body>
     <div class="dashboard-container">
         <div class="header">
-            <h1>🚀 Cote Network Dashboard{{TIMESTAMP}}
+            <h1>🚀 coTe Network Dashboard{{TIMESTAMP}}
                 <span class="live-status">
                     <span id="wsDot" class="live-dot offline"></span>
                     <span id="wsText" class="live-label offline">Offline</span>
