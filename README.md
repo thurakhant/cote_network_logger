@@ -202,16 +202,18 @@ class ApiService {
 
 The dashboard access method depends on your development setup:
 
-### �� **Android Emulator** (Most Common)
-1. Run your Flutter app on Android emulator
-2. **Open Arc browser on your Mac** (host machine)
-3. Navigate to: **http://localhost:3000**
-4. Make HTTP requests in your app to see them appear!
-
-### 📱 **iOS Simulator**
+### 📱 **iOS Simulator** (Best for Mac)
 1. Run your Flutter app on iOS simulator
 2. **Open browser on your Mac** (host machine)  
 3. Navigate to: **http://localhost:3000**
+
+### 📱 **Android Emulator** (Limited Access)
+1. Run your Flutter app on Android emulator
+2. **Open browser on the Android emulator itself**
+3. Navigate to: **http://localhost:3000**
+4. Make HTTP requests in your app to see them appear!
+
+**Note**: Due to emulator network isolation, you cannot access the dashboard from your Mac/Windows browser. Use a physical Android device if you want to view the dashboard on your computer.
 
 ### 📱 **Physical Android Device**
 1. Find your device's IP address:
@@ -312,9 +314,10 @@ This will:
 #### Android Emulator Issue
 **Problem**: "Can't access http://localhost:3000 from Mac browser"
 
-**Solution**: The server runs on the emulator, but your Mac browser needs to connect to it:
-- ✅ **Correct**: Open browser on your **Mac** and go to `http://localhost:3000`
-- ❌ **Incorrect**: Trying to open browser on the emulator itself
+**Solution**: Android emulator network is isolated from the host machine:
+- ✅ **Correct**: Open browser **on the Android emulator** and go to `http://localhost:3000`
+- ❌ **Incorrect**: Trying to access from your Mac/Windows browser (this won't work)
+- 💡 **Better option**: Use iOS Simulator or a physical Android device for better dashboard access
 
 #### Network Connectivity
 **Problem**: "Connection refused" or "Can't connect"

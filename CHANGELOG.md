@@ -8,6 +8,11 @@
 - Enhanced performance and stability
 - Updated project dependencies
 
+### Fixed
+- Fixed contradictory Android emulator documentation
+- Clarified that Android emulator dashboard is only accessible from emulator browser, not host Mac/Windows browser
+- Updated documentation to recommend iOS Simulator as best option for Mac developers
+
 ## [1.0.0] - 2024-01-15
 
 ### Added
