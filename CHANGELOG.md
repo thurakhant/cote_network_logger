@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.7] - 2025-05-31
+
+### Fixed
+- Fixed all Dart formatting and linting issues
+- Replaced `print()` statements with `debugPrint()` in example code
+- Added missing trailing commas for better code formatting
+- Improved code readability with proper line breaks
+
+### Changed
+- Enhanced code quality to meet pub.dev scoring requirements
+- Improved Dart code conventions compliance
+- Better adherence to Flutter/Dart style guidelines
+- Optimized static analysis results
+
 ## [1.0.6] - 2025-05-31
 
 ### Changed
