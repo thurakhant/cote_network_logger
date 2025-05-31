@@ -112,7 +112,8 @@ class CoteNetworkLogger extends Interceptor {
   void onResponse(Response response, ResponseInterceptorHandler handler) {
     if (kDebugMode) {
       // Use the same transaction ID from the request
-      final transactionId = response.requestOptions.extra['_cote_transaction_id'] as String?;
+      final transactionId =
+          response.requestOptions.extra['_cote_transaction_id'] as String?;
       final logEntry = _createResponseLog(response, transactionId);
       NetworkLogStore.instance.addLog(logEntry);
     }
@@ -123,14 +124,18 @@ class CoteNetworkLogger extends Interceptor {
   void onError(DioException err, ErrorInterceptorHandler handler) {
     if (kDebugMode) {
       // Use the same transaction ID from the request
-      final transactionId = err.requestOptions.extra['_cote_transaction_id'] as String?;
+      final transactionId =
+          err.requestOptions.extra['_cote_transaction_id'] as String?;
       final logEntry = _createErrorLog(err, transactionId);
       NetworkLogStore.instance.addLog(logEntry);
     }
     handler.next(err);
   }
 
-  Map<String, dynamic> _createRequestLog(RequestOptions options, String transactionId) {
+  Map<String, dynamic> _createRequestLog(
+    RequestOptions options,
+    String transactionId,
+  ) {
     return {
       'transactionId': transactionId,
       'id': '${transactionId}_request',
@@ -145,7 +150,10 @@ class CoteNetworkLogger extends Interceptor {
     };
   }
 
-  Map<String, dynamic> _createResponseLog(Response response, String? transactionId) {
+  Map<String, dynamic> _createResponseLog(
+    Response response,
+    String? transactionId,
+  ) {
     final effectiveTransactionId = transactionId ?? _generateTransactionId();
     return {
       'transactionId': effectiveTransactionId,
@@ -162,7 +170,10 @@ class CoteNetworkLogger extends Interceptor {
     };
   }
 
-  Map<String, dynamic> _createErrorLog(DioException error, String? transactionId) {
+  Map<String, dynamic> _createErrorLog(
+    DioException error,
+    String? transactionId,
+  ) {
     final effectiveTransactionId = transactionId ?? _generateTransactionId();
     return {
       'transactionId': effectiveTransactionId,
@@ -175,7 +186,9 @@ class CoteNetworkLogger extends Interceptor {
       'errorMessage': error.message,
       'statusCode': error.response?.statusCode,
       'statusMessage': error.response?.statusMessage,
-      'responseBody': error.response?.data != null ? _sanitizeBody(error.response!.data) : null,
+      'responseBody': error.response?.data != null
+          ? _sanitizeBody(error.response!.data)
+          : null,
     };
   }
 
@@ -200,7 +213,8 @@ class CoteNetworkLogger extends Interceptor {
         String truncated = stringData.substring(0, maxBodySize);
 
         // If it's JSON, try to truncate at a complete object/array boundary
-        if (stringData.trim().startsWith('{') || stringData.trim().startsWith('[')) {
+        if (stringData.trim().startsWith('{') ||
+            stringData.trim().startsWith('[')) {
           // Find the last complete JSON structure
           final int lastBrace = truncated.lastIndexOf('}');
           final int lastBracket = truncated.lastIndexOf(']');
@@ -208,7 +222,8 @@ class CoteNetworkLogger extends Interceptor {
 
           if (lastBrace > 0 && lastBracket > 0) {
             // Use whichever is later
-            final int cutPoint = lastBrace > lastBracket ? lastBrace + 1 : lastBracket + 1;
+            final int cutPoint =
+                lastBrace > lastBracket ? lastBrace + 1 : lastBracket + 1;
             truncated = stringData.substring(0, cutPoint);
           } else if (lastBrace > 0) {
             truncated = stringData.substring(0, lastBrace + 1);
@@ -232,7 +247,8 @@ class CoteNetworkLogger extends Interceptor {
           'truncated': true,
           'originalSize': stringData.length,
           'truncatedSize': truncated.length,
-          'truncationInfo': 'Content was truncated from ${stringData.length} to ${truncated.length} characters',
+          'truncationInfo':
+              'Content was truncated from ${stringData.length} to ${truncated.length} characters',
         };
       }
 

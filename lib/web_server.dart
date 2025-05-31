@@ -41,7 +41,11 @@ class NetworkLogWebServer {
     // Check if we're on a supported platform
     try {
       // This will throw on unsupported platforms
-      return Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+      return Platform.isAndroid ||
+          Platform.isIOS ||
+          Platform.isMacOS ||
+          Platform.isWindows ||
+          Platform.isLinux;
     } catch (e) {
       return false;
     }
@@ -76,7 +80,8 @@ class NetworkLogWebServer {
       _isRunning = true;
 
       _server!.listen((HttpRequest request) async {
-        if (request.uri.path == '/ws' && WebSocketTransformer.isUpgradeRequest(request)) {
+        if (request.uri.path == '/ws' &&
+            WebSocketTransformer.isUpgradeRequest(request)) {
           final socket = await WebSocketTransformer.upgrade(request);
           _wsClients.add(socket);
           socket.add(
@@ -134,23 +139,40 @@ class NetworkLogWebServer {
       debugPrint('   Go to: Settings > Privacy & Security > Local Network');
       debugPrint('   Enable access for your app');
       debugPrint('');
-      debugPrint('📱 iOS Simulator: Open http://localhost:3000 in your Mac browser');
+      debugPrint(
+        '📱 iOS Simulator: Open http://localhost:3000 in your Mac browser',
+      );
       if (deviceIp != null) {
-        debugPrint('📱 Physical iPhone: Open http://$deviceIp:3000 in Safari');
-        debugPrint('   ✅ Your device IP: $deviceIp');
+        debugPrint(
+          '📱 Physical iPhone: Open http://$deviceIp:3000 in Safari',
+        );
+        debugPrint(
+          '   ✅ Your device IP: $deviceIp',
+        );
       } else {
-        debugPrint('📱 Physical iPhone: Open http://YOUR_MAC_IP:3000 in Safari');
-        debugPrint('   💡 Find your Mac IP: System Settings > Wi-Fi > Details > TCP/IP');
+        debugPrint(
+          '📱 Physical iPhone: Open http://YOUR_MAC_IP:3000 in Safari',
+        );
+        debugPrint(
+          '   💡 Find your Mac IP: System Settings > Wi-Fi > Details > TCP/IP',
+        );
       }
-      debugPrint('   💡 Both devices must be on the same Wi-Fi network');
-      debugPrint('   💡 Alternative: Use your Mac\'s computer name: http://YOUR-MAC-NAME.local:3000');
+      debugPrint(
+        '   💡 Both devices must be on the same Wi-Fi network',
+      );
+      debugPrint(
+        '   💡 Alternative: Use your Mac\'s computer name: http://YOUR-MAC-NAME.local:3000',
+      );
     } else if (Platform.isAndroid) {
-      debugPrint('📱 Android Emulator: Open http://10.0.2.2:3000 in the emulator browser');
+      debugPrint(
+        '📱 Android Emulator: Open http://10.0.2.2:3000 in the emulator browser',
+      );
       if (deviceIp != null) {
         debugPrint('📱 Physical Android: Open http://$deviceIp:3000 in Chrome');
         debugPrint('   ✅ Your device IP: $deviceIp');
       } else {
-        debugPrint('📱 Physical Android: Open http://YOUR_MAC_IP:3000 in Chrome');
+        debugPrint(
+            '📱 Physical Android: Open http://YOUR_MAC_IP:3000 in Chrome',);
         debugPrint('   💡 Find your Mac IP: System Preferences > Network');
       }
       debugPrint('   💡 Both devices must be on the same Wi-Fi network');
@@ -162,7 +184,8 @@ class NetworkLogWebServer {
     }
 
     debugPrint('');
-    debugPrint('🎨 Features: Real-time monitoring, beautiful UI, filtering, search');
+    debugPrint(
+        '🎨 Features: Real-time monitoring, beautiful UI, filtering, search',);
     debugPrint('🔥 Make HTTP requests in your app to see them appear!');
     debugPrint('');
   }
@@ -222,7 +245,9 @@ class NetworkLogWebServer {
         // Get the HTML template and inject the JavaScript
         final html = DashboardTemplate.getHtml();
         final script = DashboardScript.getScript();
-        final finalHtml = html.replaceAll('{{DASHBOARD_SCRIPT}}', script).replaceAll('{{TIMESTAMP}}', '');
+        final finalHtml = html
+            .replaceAll('{{DASHBOARD_SCRIPT}}', script)
+            .replaceAll('{{TIMESTAMP}}', '');
 
         return Response.ok(
           finalHtml,
@@ -334,7 +359,9 @@ class NetworkLogWebServer {
           if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
             // Prefer Wi-Fi interfaces on mobile
             if (Platform.isIOS || Platform.isAndroid) {
-              if (interface.name.toLowerCase().contains('en0') || interface.name.toLowerCase().contains('wlan') || interface.name.toLowerCase().contains('wifi')) {
+              if (interface.name.toLowerCase().contains('en0') ||
+                  interface.name.toLowerCase().contains('wlan') ||
+                  interface.name.toLowerCase().contains('wifi')) {
                 return addr.address;
               }
             } else {

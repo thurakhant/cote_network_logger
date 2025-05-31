@@ -6,32 +6,32 @@ import 'package:cote_network_logger/cote_network_logger.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  print('🚀 Starting Cote Network Logger...');
+  debugPrint('🚀 Starting Cote Network Logger...');
 
   // Check platform support first
   if (!isNetworkLoggerSupported()) {
     if (kIsWeb) {
-      print('🌐 Web platform detected - Dashboard not available');
-      print('💡 Use browser DevTools Network tab for debugging');
-      print('💡 Network requests will still be logged to console');
+      debugPrint('🌐 Web platform detected - Dashboard not available');
+      debugPrint('💡 Use browser DevTools Network tab for debugging');
+      debugPrint('💡 Network requests will still be logged to console');
     } else {
-      print('❌ Platform not supported for dashboard');
+      debugPrint('❌ Platform not supported for dashboard');
     }
   } else {
     // Start the network logger server
     try {
       final serverStarted = await startNetworkLogServer();
       if (serverStarted) {
-        print('✅ Network Logger server started successfully!');
+        debugPrint('✅ Network Logger server started successfully!');
         debugPrint('🌐 Network Logger Dashboard: http://localhost:3000');
       } else {
-        print('❌ Failed to start Network Logger server');
-        print('💡 This could be due to:');
-        print('   - Port 3000 already in use');
-        print('   - Permission issues');
+        debugPrint('❌ Failed to start Network Logger server');
+        debugPrint('💡 This could be due to:');
+        debugPrint('   - Port 3000 already in use');
+        debugPrint('   - Permission issues');
       }
     } catch (e) {
-      print('💥 Error starting server: $e');
+      debugPrint('💥 Error starting server: $e');
     }
   }
 
@@ -91,7 +91,9 @@ class _HomePageState extends State<HomePage> {
             children: [
               // Dashboard info card
               Card(
-                color: isNetworkLoggerSupported() ? Colors.blue.shade50 : Colors.orange.shade50,
+                color: isNetworkLoggerSupported()
+                    ? Colors.blue.shade50
+                    : Colors.orange.shade50,
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -100,16 +102,24 @@ class _HomePageState extends State<HomePage> {
                       Row(
                         children: [
                           Icon(
-                            isNetworkLoggerSupported() ? Icons.dashboard : Icons.info,
-                            color: isNetworkLoggerSupported() ? Colors.blue.shade600 : Colors.orange.shade600,
+                            isNetworkLoggerSupported()
+                                ? Icons.dashboard
+                                : Icons.info,
+                            color: isNetworkLoggerSupported()
+                                ? Colors.blue.shade600
+                                : Colors.orange.shade600,
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            isNetworkLoggerSupported() ? 'Network Logger Dashboard' : 'Platform Information',
+                            isNetworkLoggerSupported()
+                                ? 'Network Logger Dashboard'
+                                : 'Platform Information',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: isNetworkLoggerSupported() ? Colors.blue.shade600 : Colors.orange.shade600,
+                              color: isNetworkLoggerSupported()
+                                  ? Colors.blue.shade600
+                                  : Colors.orange.shade600,
                             ),
                           ),
                         ],
@@ -153,7 +163,8 @@ class _HomePageState extends State<HomePage> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.info, color: Colors.green.shade600, size: 16),
+                                    Icon(Icons.info,
+                                        color: Colors.green.shade600, size: 16,),
                                     const SizedBox(width: 4),
                                     Text(
                                       'How to test:',
@@ -206,7 +217,9 @@ class _HomePageState extends State<HomePage> {
                               if (kIsWeb) ...[
                                 Row(
                                   children: [
-                                    Icon(Icons.web, color: Colors.orange.shade600, size: 16),
+                                    Icon(Icons.web,
+                                        color: Colors.orange.shade600,
+                                        size: 16,),
                                     const SizedBox(width: 4),
                                     Text(
                                       'Web Platform Detected',
@@ -255,11 +268,18 @@ class _HomePageState extends State<HomePage> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildStat('Requests Made', _requestCount.toString(), Icons.send),
+                      _buildStat('Requests Made', _requestCount.toString(),
+                          Icons.send,),
                       _buildStat(
                         'Dashboard',
-                        isNetworkLoggerSupported() ? (dashboardUrl != null ? 'Active' : 'Inactive') : (kIsWeb ? 'Web Mode' : 'Not Supported'),
-                        isNetworkLoggerSupported() ? (dashboardUrl != null ? Icons.check_circle : Icons.cancel) : (kIsWeb ? Icons.web : Icons.warning),
+                        isNetworkLoggerSupported()
+                            ? (dashboardUrl != null ? 'Active' : 'Inactive')
+                            : (kIsWeb ? 'Web Mode' : 'Not Supported'),
+                        isNetworkLoggerSupported()
+                            ? (dashboardUrl != null
+                                ? Icons.check_circle
+                                : Icons.cancel)
+                            : (kIsWeb ? Icons.web : Icons.warning),
                       ),
                     ],
                   ),
@@ -444,7 +464,8 @@ class _HomePageState extends State<HomePage> {
       await requestFunction();
       setState(() {
         _requestCount++;
-        _lastResponse = 'Request completed successfully! Check the dashboard to see the network details.';
+        _lastResponse =
+            'Request completed successfully! Check the dashboard to see the network details.';
       });
     } catch (e) {
       setState(() {
@@ -506,8 +527,9 @@ class ApiService {
       '/posts',
       data: {
         'title': 'Test Post from Cote Network Logger',
-        'body': 'This is a test post created via Cote Network Logger example app. '
-            'You should see this request details in the dashboard!',
+        'body':
+            'This is a test post created via Cote Network Logger example app. '
+                'You should see this request details in the dashboard!',
         'userId': 1,
         'timestamp': DateTime.now().toIso8601String(),
         'metadata': {
@@ -526,8 +548,9 @@ class ApiService {
       data: {
         'id': 1,
         'title': 'Updated Test Post via Cote Network Logger',
-        'body': 'This post has been updated via Cote Network Logger example app. '
-            'Check the dashboard to see request/response details!',
+        'body':
+            'This post has been updated via Cote Network Logger example app. '
+                'Check the dashboard to see request/response details!',
         'userId': 1,
         'lastUpdated': DateTime.now().toIso8601String(),
         'updatedBy': 'cote_network_logger_demo',
