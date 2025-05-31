@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.9] - 2025-05-31
+
+### Fixed
+- Removed markdown formatting from localhost HTTP link in README.md to resolve pub.dev security warning
+- Updated repository URL format in pubspec.yaml for better pub.dev compatibility
+- Ensured all external links use HTTPS while keeping localhost as HTTP for development purposes
+
 ## [1.0.8] - 2025-05-31
 
 ### Fixed

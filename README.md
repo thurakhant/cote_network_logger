@@ -30,7 +30,7 @@ A powerful Flutter package for real-time HTTP network monitoring during developm
    dio.interceptors.add(const CoteNetworkLogger());
    ```
 
-4. **Open [http://localhost:3000](http://localhost:3000) in your browser to see the dashboard!**
+4. **Open http://localhost:3000 in your browser to see the dashboard!**
 
 ## 🧪 **Quick Test (iPhone Simulator)**
 
