@@ -1,23 +1,27 @@
 # Changelog
 
-## [1.0.9] - 2025-05-31
-
-### Fixed
-- Removed markdown formatting from localhost HTTP link in README.md to resolve pub.dev security warning
-- Updated repository URL format in pubspec.yaml for better pub.dev compatibility
-- Ensured all external links use HTTPS while keeping localhost as HTTP for development purposes
-
 ## [1.0.8] - 2025-05-31
 
 ### Fixed
 - Final Dart formatting fixes to achieve perfect static analysis score
 - Resolved remaining formatting issues in web_server.dart file
 - All code now passes pub.dev static analysis requirements
+- Removed markdown formatting from localhost HTTP link in README.md to resolve pub.dev security warning
+- Updated repository URL format in pubspec.yaml for better pub.dev compatibility
+- Ensured all external links use HTTPS while keeping localhost as HTTP for development purposes
+- Fixed all Dart formatting and linting issues
+- Replaced print() statements with debugPrint() in example code
+- Added missing trailing commas for better code formatting
+- Improved code readability with proper line breaks
+- Enhanced code quality to meet pub.dev scoring requirements
+- Improved Dart code conventions compliance
+- Better adherence to Flutter/Dart style guidelines
+- Optimized static analysis results
 
 ## [1.0.7] - 2025-05-31
 
 ### Fixed
-- Fixed all Dart formatting and linting issues
+- Final Dart formatting and linting issues
 - Replaced `print()` statements with `debugPrint()` in example code
 - Added missing trailing commas for better code formatting
 - Improved code readability with proper line breaks
