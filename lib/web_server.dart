@@ -172,7 +172,8 @@ class NetworkLogWebServer {
         debugPrint('   ✅ Your device IP: $deviceIp');
       } else {
         debugPrint(
-            '📱 Physical Android: Open http://YOUR_MAC_IP:3000 in Chrome',);
+          '📱 Physical Android: Open http://YOUR_MAC_IP:3000 in Chrome',
+        );
         debugPrint('   💡 Find your Mac IP: System Preferences > Network');
       }
       debugPrint('   💡 Both devices must be on the same Wi-Fi network');
@@ -185,7 +186,8 @@ class NetworkLogWebServer {
 
     debugPrint('');
     debugPrint(
-        '🎨 Features: Real-time monitoring, beautiful UI, filtering, search',);
+      '🎨 Features: Real-time monitoring, beautiful UI, filtering, search',
+    );
     debugPrint('🔥 Make HTTP requests in your app to see them appear!');
     debugPrint('');
   }

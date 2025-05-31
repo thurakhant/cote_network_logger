@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.8] - 2025-05-31
+
+### Fixed
+- Final Dart formatting fixes to achieve perfect static analysis score
+- Resolved remaining formatting issues in web_server.dart file
+- All code now passes pub.dev static analysis requirements
+
 ## [1.0.7] - 2025-05-31
 
 ### Fixed

@@ -163,8 +163,11 @@ class _HomePageState extends State<HomePage> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.info,
-                                        color: Colors.green.shade600, size: 16,),
+                                    Icon(
+                                      Icons.info,
+                                      color: Colors.green.shade600,
+                                      size: 16,
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
                                       'How to test:',
@@ -217,9 +220,11 @@ class _HomePageState extends State<HomePage> {
                               if (kIsWeb) ...[
                                 Row(
                                   children: [
-                                    Icon(Icons.web,
-                                        color: Colors.orange.shade600,
-                                        size: 16,),
+                                    Icon(
+                                      Icons.web,
+                                      color: Colors.orange.shade600,
+                                      size: 16,
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
                                       'Web Platform Detected',
@@ -268,8 +273,11 @@ class _HomePageState extends State<HomePage> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildStat('Requests Made', _requestCount.toString(),
-                          Icons.send,),
+                      _buildStat(
+                        'Requests Made',
+                        _requestCount.toString(),
+                        Icons.send,
+                      ),
                       _buildStat(
                         'Dashboard',
                         isNetworkLoggerSupported()
