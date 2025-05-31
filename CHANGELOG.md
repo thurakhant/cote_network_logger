@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.6] - 2025-05-31
+
+### Changed
+- Package maintenance and optimization
+- Code quality improvements
+- Enhanced performance and stability
+- Updated project dependencies
+
 ## [1.0.0] - 2024-01-15
 
 ### Added

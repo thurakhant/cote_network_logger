@@ -32,6 +32,39 @@ A powerful Flutter package for real-time HTTP network monitoring during developm
 
 4. **Open [http://localhost:3000](http://localhost:3000) in your browser to see the dashboard!**
 
+## 🧪 **Quick Test (iPhone Simulator)**
+
+To verify everything works on iPhone simulator:
+
+1. **Run your Flutter app on iPhone simulator:**
+   ```bash
+   flutter run -d iPhone
+   ```
+
+2. **Open the dashboard in your Mac browser:**
+   ```
+   http://localhost:3000
+   ```
+
+3. **Verify the dashboard is working:**
+   - ✅ You should see "🚀 coTe Network Dashboard" 
+   - ✅ Connection status should show "Live" (green) or "Offline" (red)
+   - ✅ Console should show: `🎯 Dashboard DOM loaded, initializing...`
+
+4. **Test HTTP requests in your app:**
+   - Tap buttons in your Flutter app to make HTTP requests
+   - Watch requests appear in real-time on the dashboard
+   - Try expanding rows to see request/response details
+
+5. **If dashboard shows "Waiting for network requests":**
+   - ✅ Dashboard is working correctly
+   - ✅ Make HTTP requests in your app to see them appear
+
+**Common Issues:**
+- If browser shows "connection refused": Server might not be running
+- If dashboard is blank: Check browser console for JavaScript errors
+- If requests don't appear: Check that your Dio client has the interceptor added
+
 ---
 
 ## ✨ Features
@@ -169,7 +202,7 @@ class ApiService {
 
 The dashboard access method depends on your development setup:
 
-### 📱 **Android Emulator** (Most Common)
+### �� **Android Emulator** (Most Common)
 1. Run your Flutter app on Android emulator
 2. **Open Arc browser on your Mac** (host machine)
 3. Navigate to: **http://localhost:3000**
@@ -195,6 +228,44 @@ The dashboard access method depends on your development setup:
 2. **Open browser on any device on the same network**
 3. Navigate to: **http://YOUR_DEVICE_IP:3000**
    - Example: `http://192.168.1.101:3000`
+
+#### 🔧 **iOS Local Network Setup** (Required for Physical iOS Devices)
+
+When running on a physical iPhone/iPad, you **must** enable Local Network permissions:
+
+1. **Go to iOS Settings**:
+   ```
+   Settings > Privacy & Security > Local Network
+   ```
+
+2. **Find your app** in the list and **toggle it ON**
+
+3. **Alternative method** if app doesn't appear:
+   - Run your Flutter app once
+   - Try to access the dashboard from your Mac browser
+   - iOS will show a popup asking for Local Network permission
+   - Tap **"Allow"**
+
+4. **Verify permissions**:
+   - Look for console message: `✅ Your device IP: xxx.xxx.xxx.xxx`
+   - If you see IP address, permissions are working correctly
+
+#### 📋 **iOS Troubleshooting Checklist**
+
+❌ **Dashboard not accessible from Mac browser?**
+- [ ] Local Network permission enabled for your app?
+- [ ] Both iPhone and Mac on same Wi-Fi network?
+- [ ] Using correct IP address (not `localhost`)?
+- [ ] Server started successfully? (check debug console)
+
+✅ **Working setup should show**:
+```
+flutter: 🚀 NetworkLogWebServer: Starting server on 0.0.0.0:3000...
+flutter: ✅ NetworkLogWebServer: Server started successfully!
+flutter: 🌐 Network Logger Dashboard: http://localhost:3000 (simulator) or http://YOUR_MAC_IP:3000 (physical device)
+flutter: 📱 Physical iPhone: Open http://192.168.1.101:3000 in Safari
+flutter:    ✅ Your device IP: 192.168.1.101
+```
 
 ### 💻 **Desktop (macOS/Windows/Linux)**
 1. Run your Flutter app

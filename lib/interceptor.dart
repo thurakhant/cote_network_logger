@@ -34,7 +34,8 @@ class CoteNetworkLogger extends Interceptor {
   }) {
     if (!kDebugMode) return;
     final logEntry = {
-      'id': id,
+      'transactionId': id, // Use as transaction ID for manual logs
+      'id': '${id}_request',
       'type': 'request',
       'timestamp': DateTime.now().toIso8601String(),
       'method': method.toUpperCase(),
@@ -56,7 +57,8 @@ class CoteNetworkLogger extends Interceptor {
   }) {
     if (!kDebugMode) return;
     final logEntry = {
-      'id': id,
+      'transactionId': id, // Use as transaction ID for manual logs
+      'id': '${id}_response',
       'type': 'response',
       'timestamp': DateTime.now().toIso8601String(),
       'method': method.toUpperCase(),
@@ -80,7 +82,8 @@ class CoteNetworkLogger extends Interceptor {
   }) {
     if (!kDebugMode) return;
     final logEntry = {
-      'id': id,
+      'transactionId': id, // Use as transaction ID for manual logs
+      'id': '${id}_error',
       'type': 'error',
       'timestamp': DateTime.now().toIso8601String(),
       'method': method.toUpperCase(),
@@ -95,7 +98,11 @@ class CoteNetworkLogger extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     if (kDebugMode) {
-      final logEntry = _createRequestLog(options);
+      // Generate a transaction ID that will be shared between request and response
+      final transactionId = _generateTransactionId();
+      options.extra['_cote_transaction_id'] = transactionId;
+
+      final logEntry = _createRequestLog(options, transactionId);
       NetworkLogStore.instance.addLog(logEntry);
     }
     handler.next(options);
@@ -104,7 +111,9 @@ class CoteNetworkLogger extends Interceptor {
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
     if (kDebugMode) {
-      final logEntry = _createResponseLog(response);
+      // Use the same transaction ID from the request
+      final transactionId = response.requestOptions.extra['_cote_transaction_id'] as String?;
+      final logEntry = _createResponseLog(response, transactionId);
       NetworkLogStore.instance.addLog(logEntry);
     }
     handler.next(response);
@@ -113,15 +122,18 @@ class CoteNetworkLogger extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     if (kDebugMode) {
-      final logEntry = _createErrorLog(err);
+      // Use the same transaction ID from the request
+      final transactionId = err.requestOptions.extra['_cote_transaction_id'] as String?;
+      final logEntry = _createErrorLog(err, transactionId);
       NetworkLogStore.instance.addLog(logEntry);
     }
     handler.next(err);
   }
 
-  Map<String, dynamic> _createRequestLog(RequestOptions options) {
+  Map<String, dynamic> _createRequestLog(RequestOptions options, String transactionId) {
     return {
-      'id': _generateLogId(),
+      'transactionId': transactionId,
+      'id': '${transactionId}_request',
       'type': 'request',
       'timestamp': DateTime.now().toIso8601String(),
       'method': options.method,
@@ -133,9 +145,11 @@ class CoteNetworkLogger extends Interceptor {
     };
   }
 
-  Map<String, dynamic> _createResponseLog(Response response) {
+  Map<String, dynamic> _createResponseLog(Response response, String? transactionId) {
+    final effectiveTransactionId = transactionId ?? _generateTransactionId();
     return {
-      'id': _generateLogId(),
+      'transactionId': effectiveTransactionId,
+      'id': '${effectiveTransactionId}_response',
       'type': 'response',
       'timestamp': DateTime.now().toIso8601String(),
       'method': response.requestOptions.method,
@@ -148,9 +162,11 @@ class CoteNetworkLogger extends Interceptor {
     };
   }
 
-  Map<String, dynamic> _createErrorLog(DioException error) {
+  Map<String, dynamic> _createErrorLog(DioException error, String? transactionId) {
+    final effectiveTransactionId = transactionId ?? _generateTransactionId();
     return {
-      'id': _generateLogId(),
+      'transactionId': effectiveTransactionId,
+      'id': '${effectiveTransactionId}_error',
       'type': 'error',
       'timestamp': DateTime.now().toIso8601String(),
       'method': error.requestOptions.method,
@@ -168,7 +184,7 @@ class CoteNetworkLogger extends Interceptor {
     if (data == null) return null;
 
     try {
-      String stringData;
+      final String stringData;
       if (data is String) {
         stringData = data;
       } else if (data is Map || data is List) {
@@ -177,10 +193,47 @@ class CoteNetworkLogger extends Interceptor {
         stringData = data.toString();
       }
 
-      // Limit to 10KB
-      const int maxBodySize = 10240;
+      // Increase limit to 50KB and handle truncation better
+      const int maxBodySize = 51200; // 50KB
       if (stringData.length > maxBodySize) {
-        return '${stringData.substring(0, maxBodySize)}... [TRUNCATED]';
+        // Try to truncate at a reasonable JSON boundary
+        String truncated = stringData.substring(0, maxBodySize);
+
+        // If it's JSON, try to truncate at a complete object/array boundary
+        if (stringData.trim().startsWith('{') || stringData.trim().startsWith('[')) {
+          // Find the last complete JSON structure
+          final int lastBrace = truncated.lastIndexOf('}');
+          final int lastBracket = truncated.lastIndexOf(']');
+          final int lastComma = truncated.lastIndexOf(',');
+
+          if (lastBrace > 0 && lastBracket > 0) {
+            // Use whichever is later
+            final int cutPoint = lastBrace > lastBracket ? lastBrace + 1 : lastBracket + 1;
+            truncated = stringData.substring(0, cutPoint);
+          } else if (lastBrace > 0) {
+            truncated = stringData.substring(0, lastBrace + 1);
+          } else if (lastBracket > 0) {
+            truncated = stringData.substring(0, lastBracket + 1);
+          } else if (lastComma > 0) {
+            // If no complete structures, cut at last comma
+            truncated = stringData.substring(0, lastComma);
+            // Add closing bracket/brace if needed
+            if (stringData.trim().startsWith('[')) {
+              truncated += ']';
+            } else if (stringData.trim().startsWith('{')) {
+              truncated += '}';
+            }
+          }
+        }
+
+        // Return object with truncation info for better handling
+        return {
+          'data': truncated,
+          'truncated': true,
+          'originalSize': stringData.length,
+          'truncatedSize': truncated.length,
+          'truncationInfo': 'Content was truncated from ${stringData.length} to ${truncated.length} characters',
+        };
       }
 
       return stringData;
@@ -204,9 +257,9 @@ class CoteNetworkLogger extends Interceptor {
     }
   }
 
-  String _generateLogId() {
+  String _generateTransactionId() {
     final timestamp = DateTime.now().microsecondsSinceEpoch;
     final random = (DateTime.now().millisecondsSinceEpoch * 31) % 10000;
-    return '${timestamp}_$random';
+    return 'tx_${timestamp}_$random';
   }
 }

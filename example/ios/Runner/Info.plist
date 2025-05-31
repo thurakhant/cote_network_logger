@@ -45,5 +45,15 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- Local Network Usage Description for iOS 14+ -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>This app needs local network access to provide debugging and network logging features.</string>
+
+	<!-- Bonjour services for local network discovery (http) -->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_http._tcp</string>
+	</array>
 </dict>
 </plist>
