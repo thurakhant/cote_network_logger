@@ -2,29 +2,31 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shelf/shelf.dart';
-import 'log_store.dart';
 import 'dart:async';
 import 'web_server/dashboard_template.dart';
 import 'web_server/dashboard_script.dart';
+import 'cote_network_logger.dart';
 
 /// A local web server that provides a dashboard for viewing network logs.
 ///
 /// This server serves a static HTML dashboard and provides API endpoints
-/// for accessing network activity logs. Only runs in debug mode and on
-/// platforms that support server sockets (mobile, desktop).
+/// for accessing network activity logs. Only runs in debug mode or staging
+/// environment and on platforms that support server sockets (mobile, desktop).
 ///
 /// **Platform Support:**
 /// - ✅ Android, iOS, macOS, Windows, Linux
 /// - ❌ Web (browsers don't support ServerSocket.bind)
+///
+/// **Environment Support:**
+/// - ✅ Debug mode (always enabled)
+/// - ✅ Staging environment (when STAGING_ENV=true)
+/// - ❌ Production environment (always disabled)
 class NetworkLogWebServer {
   NetworkLogWebServer._internal();
   static final NetworkLogWebServer _instance = NetworkLogWebServer._internal();
 
   /// Returns the singleton instance of NetworkLogWebServer.
   static NetworkLogWebServer get instance => _instance;
-
-  static const String _host = '0.0.0.0';
-  static const int _port = 3000;
 
   HttpServer? _server;
   bool _isRunning = false;
@@ -49,7 +51,7 @@ class NetworkLogWebServer {
 
   /// Starts the web server if not already running.
   ///
-  /// Only starts in debug mode and on supported platforms. The server will be available at:
+  /// Only starts in debug mode or staging environment and on supported platforms. The server will be available at:
   /// - **Android Emulator**: http://localhost:3000 (from host Mac browser)
   /// - **Physical Android**: http://YOUR_DEVICE_IP:3000 (find IP in device settings)
   /// - **iOS Simulator**: http://localhost:3000 (from host Mac browser)
@@ -65,14 +67,14 @@ class NetworkLogWebServer {
   ///
   /// Returns true if the server started successfully, false otherwise.
   Future<bool> start() async {
-    if (!kDebugMode) return false;
+    if (!NetworkLoggerConfig.isEnabled) return false;
     if (!isPlatformSupported) return false;
     if (_isRunning) return false;
 
     try {
-      debugPrint('🚀 NetworkLogWebServer: Starting server on $_host:$_port...');
+      debugPrint('🚀 NetworkLogWebServer: Starting server on ${NetworkLoggerConfig.serverHost}:${NetworkLoggerConfig.serverPort}...');
       final handler = _createHandler();
-      _server = await HttpServer.bind(_host, _port);
+      _server = await HttpServer.bind(NetworkLoggerConfig.serverHost, NetworkLoggerConfig.serverPort);
       _isRunning = true;
 
       _server!.listen((HttpRequest request) async {
@@ -134,23 +136,41 @@ class NetworkLogWebServer {
       debugPrint('   Go to: Settings > Privacy & Security > Local Network');
       debugPrint('   Enable access for your app');
       debugPrint('');
-      debugPrint('📱 iOS Simulator: Open http://localhost:3000 in your Mac browser');
+      debugPrint(
+        '📱 iOS Simulator: Open http://localhost:3000 in your Mac browser',
+      );
       if (deviceIp != null) {
-        debugPrint('📱 Physical iPhone: Open http://$deviceIp:3000 in Safari');
-        debugPrint('   ✅ Your device IP: $deviceIp');
+        debugPrint(
+          '📱 Physical iPhone: Open http://$deviceIp:3000 in Safari',
+        );
+        debugPrint(
+          '   ✅ Your device IP: $deviceIp',
+        );
       } else {
-        debugPrint('📱 Physical iPhone: Open http://YOUR_MAC_IP:3000 in Safari');
-        debugPrint('   💡 Find your Mac IP: System Settings > Wi-Fi > Details > TCP/IP');
+        debugPrint(
+          '📱 Physical iPhone: Open http://YOUR_MAC_IP:3000 in Safari',
+        );
+        debugPrint(
+          '   💡 Find your Mac IP: System Settings > Wi-Fi > Details > TCP/IP',
+        );
       }
-      debugPrint('   💡 Both devices must be on the same Wi-Fi network');
-      debugPrint('   💡 Alternative: Use your Mac\'s computer name: http://YOUR-MAC-NAME.local:3000');
+      debugPrint(
+        '   💡 Both devices must be on the same Wi-Fi network',
+      );
+      debugPrint(
+        '   💡 Alternative: Use your Mac\'s computer name: http://YOUR-MAC-NAME.local:3000',
+      );
     } else if (Platform.isAndroid) {
-      debugPrint('📱 Android Emulator: Open http://10.0.2.2:3000 in the emulator browser');
+      debugPrint(
+        '📱 Android Emulator: Open http://10.0.2.2:3000 in the emulator browser',
+      );
       if (deviceIp != null) {
         debugPrint('📱 Physical Android: Open http://$deviceIp:3000 in Chrome');
         debugPrint('   ✅ Your device IP: $deviceIp');
       } else {
-        debugPrint('📱 Physical Android: Open http://YOUR_MAC_IP:3000 in Chrome');
+        debugPrint(
+          '📱 Physical Android: Open http://YOUR_MAC_IP:3000 in Chrome',
+        );
         debugPrint('   💡 Find your Mac IP: System Preferences > Network');
       }
       debugPrint('   💡 Both devices must be on the same Wi-Fi network');
@@ -162,7 +182,9 @@ class NetworkLogWebServer {
     }
 
     debugPrint('');
-    debugPrint('🎨 Features: Real-time monitoring, beautiful UI, filtering, search');
+    debugPrint(
+      '🎨 Features: Real-time monitoring, beautiful UI, filtering, search',
+    );
     debugPrint('🔥 Make HTTP requests in your app to see them appear!');
     debugPrint('');
   }
@@ -186,7 +208,7 @@ class NetworkLogWebServer {
     } else if (Platform.isAndroid) {
       return 'http://10.0.2.2:3000 (emulator) or http://YOUR_MAC_IP:3000 (physical device)';
     }
-    return 'http://localhost:$_port';
+    return 'http://localhost:${NetworkLoggerConfig.serverPort}';
   }
 
   /// Broadcasts a new log entry to all connected WebSocket clients.
