@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:cote_network_logger/cote_network_logger.dart';
 
@@ -63,7 +62,7 @@ class _HomePageState extends State<HomePage> {
             margin: const EdgeInsets.only(right: 16),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: _getFlavorColor(currentFlavor).withOpacity(0.2),
+              color: _getFlavorColor(currentFlavor).withAlpha(26),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: _getFlavorColor(currentFlavor),
@@ -269,7 +268,7 @@ class _HomePageState extends State<HomePage> {
   ) {
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: color.withOpacity(0.1),
+        backgroundColor: color.withAlpha(26),
         child: Icon(icon, color: color),
       ),
       title: Text(

@@ -275,7 +275,7 @@ class _HomePageState extends State<HomePage> {
   ) {
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: color.withOpacity(0.1),
+        backgroundColor: color.withAlpha(26),
         child: Icon(icon, color: color),
       ),
       title: Text(

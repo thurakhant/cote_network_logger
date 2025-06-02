@@ -37,7 +37,7 @@ class EnvironmentIndicator extends StatelessWidget {
       margin: const EdgeInsets.only(right: 16),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: settings.color.withOpacity(0.2),
+        color: settings.color.withAlpha(26),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: settings.color,
@@ -68,7 +68,7 @@ class EnvironmentIndicator extends StatelessWidget {
 
   Widget _buildFullIndicator(EnvironmentSettings settings) {
     return Card(
-      color: settings.color.withOpacity(0.1),
+      color: settings.color.withAlpha(26),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -95,7 +95,7 @@ class EnvironmentIndicator extends StatelessWidget {
             Text(
               settings.description,
               style: TextStyle(
-                color: settings.color.withOpacity(0.8),
+                color: settings.color.withAlpha(26),
               ),
             ),
             if (showFeatures) ...[

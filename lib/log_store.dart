@@ -1,6 +1,4 @@
 import 'dart:collection';
-import 'package:flutter/foundation.dart';
-import 'web_server.dart';
 import 'cote_network_logger.dart';
 
 /// Represents a network request log entry

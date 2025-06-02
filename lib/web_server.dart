@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shelf/shelf.dart';
-import 'log_store.dart';
 import 'dart:async';
 import 'web_server/dashboard_template.dart';
 import 'web_server/dashboard_script.dart';
