@@ -6,18 +6,201 @@ export 'interceptor.dart'; // Contains CoteNetworkLogger class
 export 'log_store.dart';
 export 'web_server.dart';
 
+/// Environment configuration for Network Logger
+class NetworkLoggerConfig {
+  // Private constructor to prevent instantiation
+  NetworkLoggerConfig._();
+
+  // Default environment types
+  static const String kDebug = 'debug';
+  static const String kStaging = 'staging';
+  static const String kProduction = 'production';
+
+  // Custom environment types
+  static final Set<String> _customEnvironments = {};
+
+  /// Get current environment/flavor
+  static String get currentFlavor {
+    if (kDebugMode) return kDebug;
+    if (const bool.fromEnvironment('STAGING_ENV')) return kStaging;
+    return kProduction;
+  }
+
+  /// Check if logger is enabled
+  static bool get isEnabled {
+    // Allow explicit enable flag
+    if (const bool.fromEnvironment('NETWORK_LOGGER_ENABLED')) return true;
+
+    // Enable in debug mode
+    if (kDebugMode) return true;
+
+    // Enable in staging environment
+    if (currentFlavor == kStaging) return true;
+
+    return false;
+  }
+
+  /// Check if logger is enabled in specific environment
+  static bool isEnabledInFlavor(String flavor) {
+    final normalizedFlavor = flavor.toLowerCase();
+
+    // Enable in debug mode
+    if (normalizedFlavor == kDebug) return true;
+
+    // Enable in staging
+    if (normalizedFlavor == kStaging) return true;
+
+    // Enable in custom environments if explicitly enabled
+    if (_customEnvironments.contains(normalizedFlavor)) {
+      return const bool.fromEnvironment('NETWORK_LOGGER_ENABLED');
+    }
+
+    return false;
+  }
+
+  /// Maximum number of logs to keep in memory
+  static const int maxLogEntries = 200;
+
+  /// Port number for the dashboard server
+  static const int serverPort = 3000;
+
+  /// Host address for the dashboard server
+  static const String serverHost = '0.0.0.0';
+
+  /// Add a custom environment type
+  static void addCustomEnvironment(String environment) {
+    _customEnvironments.add(environment.toLowerCase());
+  }
+
+  /// Get all available environment types
+  static Set<String> get availableEnvironments => {
+        kDebug,
+        kStaging,
+        kProduction,
+        ..._customEnvironments,
+      };
+
+  /// Check if the given environment is valid
+  static bool isValidEnvironment(String environment) {
+    return availableEnvironments.contains(environment.toLowerCase());
+  }
+}
+
+/// Builder class for configuring Network Logger environments
+class NetworkLoggerEnvironment {
+  final String name;
+  final bool enableByDefault;
+  final String? description;
+
+  const NetworkLoggerEnvironment({
+    required this.name,
+    this.enableByDefault = false,
+    this.description,
+  });
+
+  /// Create a debug environment
+  static const debug = NetworkLoggerEnvironment(
+    name: 'debug',
+    enableByDefault: true,
+    description: 'Development environment with full logging',
+  );
+
+  /// Create a staging environment
+  static const staging = NetworkLoggerEnvironment(
+    name: 'staging',
+    enableByDefault: true,
+    description: 'Staging environment for testing',
+  );
+
+  /// Create a production environment
+  static const production = NetworkLoggerEnvironment(
+    name: 'production',
+    enableByDefault: false,
+    description: 'Production environment with logging disabled',
+  );
+
+  /// Create a QA environment
+  static const qa = NetworkLoggerEnvironment(
+    name: 'qa',
+    enableByDefault: true,
+    description: 'QA testing environment',
+  );
+
+  /// Create a beta environment
+  static const beta = NetworkLoggerEnvironment(
+    name: 'beta',
+    enableByDefault: true,
+    description: 'Beta testing environment',
+  );
+
+  /// Create a custom environment
+  static NetworkLoggerEnvironment custom({
+    required String name,
+    bool enableByDefault = false,
+    String? description,
+  }) {
+    return NetworkLoggerEnvironment(
+      name: name,
+      enableByDefault: enableByDefault,
+      description: description,
+    );
+  }
+}
+
+/// Helper class to configure Network Logger
+class NetworkLogger {
+  /// Configure the logger with specific environments
+  static void configure({
+    List<NetworkLoggerEnvironment>? environments,
+    bool enableInRelease = false,
+  }) {
+    if (environments != null) {
+      for (final env in environments) {
+        NetworkLoggerConfig.addCustomEnvironment(env.name);
+      }
+    }
+
+    if (enableInRelease) {
+      // Enable logger in release mode
+      const bool.fromEnvironment('NETWORK_LOGGER_ENABLED');
+    }
+  }
+
+  /// Start the logger if enabled in current environment
+  static Future<bool> start() async {
+    if (NetworkLoggerConfig.isEnabled) {
+      return await startNetworkLogServer();
+    }
+    return false;
+  }
+
+  /// Get the dashboard URL if logger is running
+  static String? get dashboardUrl => getNetworkLogDashboardUrl();
+
+  /// Check if logger is running
+  static bool get isRunning => isNetworkLogServerRunning();
+}
+
 /// Starts the Network Logger web server.
 ///
 /// This function initializes the local web server that serves the dashboard
-/// and API endpoints for viewing network logs. The server will only start
-/// in debug mode and on supported platforms.
+/// and API endpoints for viewing network logs. The server will start if:
+/// - In debug mode
+/// - In staging environment
+/// - Explicitly enabled via NETWORK_LOGGER_ENABLED flag
 ///
 /// **Platform Support:**
 /// - ✅ Android, iOS, macOS, Windows, Linux
 /// - ❌ Web (browsers don't support ServerSocket.bind)
 ///
+/// **Environment Support:**
+/// - ✅ Debug mode (always enabled)
+/// - ✅ Staging environment (when STAGING_ENV=true)
+/// - ✅ Release mode with explicit enable (when NETWORK_LOGGER_ENABLED=true)
+/// - ❌ Production environment (disabled by default)
+///
 /// Returns a [Future<bool>] indicating whether the server started successfully.
-/// Returns false if platform is not supported or if not in debug mode.
+/// Returns false if platform is not supported or if not enabled.
 ///
 /// Usage:
 /// ```dart
@@ -36,7 +219,7 @@ export 'web_server.dart';
 /// }
 /// ```
 Future<bool> startNetworkLogServer() async {
-  if (!kDebugMode) {
+  if (!NetworkLoggerConfig.isEnabled) {
     return false;
   }
 
@@ -80,8 +263,7 @@ bool isNetworkLogServerRunning() {
 ///
 /// Returns null if the server is not running or platform is not supported.
 String? getNetworkLogDashboardUrl() {
-  if (!NetworkLogWebServer.isPlatformSupported ||
-      !NetworkLogWebServer.instance.isRunning) {
+  if (!NetworkLogWebServer.isPlatformSupported || !NetworkLogWebServer.instance.isRunning) {
     return null;
   }
   return NetworkLogWebServer.instance.dashboardUrl;

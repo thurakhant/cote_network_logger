@@ -6,25 +6,28 @@ import 'log_store.dart';
 import 'dart:async';
 import 'web_server/dashboard_template.dart';
 import 'web_server/dashboard_script.dart';
+import 'cote_network_logger.dart';
 
 /// A local web server that provides a dashboard for viewing network logs.
 ///
 /// This server serves a static HTML dashboard and provides API endpoints
-/// for accessing network activity logs. Only runs in debug mode and on
-/// platforms that support server sockets (mobile, desktop).
+/// for accessing network activity logs. Only runs in debug mode or staging
+/// environment and on platforms that support server sockets (mobile, desktop).
 ///
 /// **Platform Support:**
 /// - ✅ Android, iOS, macOS, Windows, Linux
 /// - ❌ Web (browsers don't support ServerSocket.bind)
+///
+/// **Environment Support:**
+/// - ✅ Debug mode (always enabled)
+/// - ✅ Staging environment (when STAGING_ENV=true)
+/// - ❌ Production environment (always disabled)
 class NetworkLogWebServer {
   NetworkLogWebServer._internal();
   static final NetworkLogWebServer _instance = NetworkLogWebServer._internal();
 
   /// Returns the singleton instance of NetworkLogWebServer.
   static NetworkLogWebServer get instance => _instance;
-
-  static const String _host = '0.0.0.0';
-  static const int _port = 3000;
 
   HttpServer? _server;
   bool _isRunning = false;
@@ -41,11 +44,7 @@ class NetworkLogWebServer {
     // Check if we're on a supported platform
     try {
       // This will throw on unsupported platforms
-      return Platform.isAndroid ||
-          Platform.isIOS ||
-          Platform.isMacOS ||
-          Platform.isWindows ||
-          Platform.isLinux;
+      return Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows || Platform.isLinux;
     } catch (e) {
       return false;
     }
@@ -53,7 +52,7 @@ class NetworkLogWebServer {
 
   /// Starts the web server if not already running.
   ///
-  /// Only starts in debug mode and on supported platforms. The server will be available at:
+  /// Only starts in debug mode or staging environment and on supported platforms. The server will be available at:
   /// - **Android Emulator**: http://localhost:3000 (from host Mac browser)
   /// - **Physical Android**: http://YOUR_DEVICE_IP:3000 (find IP in device settings)
   /// - **iOS Simulator**: http://localhost:3000 (from host Mac browser)
@@ -69,19 +68,18 @@ class NetworkLogWebServer {
   ///
   /// Returns true if the server started successfully, false otherwise.
   Future<bool> start() async {
-    if (!kDebugMode) return false;
+    if (!NetworkLoggerConfig.isEnabled) return false;
     if (!isPlatformSupported) return false;
     if (_isRunning) return false;
 
     try {
-      debugPrint('🚀 NetworkLogWebServer: Starting server on $_host:$_port...');
+      debugPrint('🚀 NetworkLogWebServer: Starting server on ${NetworkLoggerConfig.serverHost}:${NetworkLoggerConfig.serverPort}...');
       final handler = _createHandler();
-      _server = await HttpServer.bind(_host, _port);
+      _server = await HttpServer.bind(NetworkLoggerConfig.serverHost, NetworkLoggerConfig.serverPort);
       _isRunning = true;
 
       _server!.listen((HttpRequest request) async {
-        if (request.uri.path == '/ws' &&
-            WebSocketTransformer.isUpgradeRequest(request)) {
+        if (request.uri.path == '/ws' && WebSocketTransformer.isUpgradeRequest(request)) {
           final socket = await WebSocketTransformer.upgrade(request);
           _wsClients.add(socket);
           socket.add(
@@ -211,7 +209,7 @@ class NetworkLogWebServer {
     } else if (Platform.isAndroid) {
       return 'http://10.0.2.2:3000 (emulator) or http://YOUR_MAC_IP:3000 (physical device)';
     }
-    return 'http://localhost:$_port';
+    return 'http://localhost:${NetworkLoggerConfig.serverPort}';
   }
 
   /// Broadcasts a new log entry to all connected WebSocket clients.
@@ -247,9 +245,7 @@ class NetworkLogWebServer {
         // Get the HTML template and inject the JavaScript
         final html = DashboardTemplate.getHtml();
         final script = DashboardScript.getScript();
-        final finalHtml = html
-            .replaceAll('{{DASHBOARD_SCRIPT}}', script)
-            .replaceAll('{{TIMESTAMP}}', '');
+        final finalHtml = html.replaceAll('{{DASHBOARD_SCRIPT}}', script).replaceAll('{{TIMESTAMP}}', '');
 
         return Response.ok(
           finalHtml,
@@ -361,9 +357,7 @@ class NetworkLogWebServer {
           if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
             // Prefer Wi-Fi interfaces on mobile
             if (Platform.isIOS || Platform.isAndroid) {
-              if (interface.name.toLowerCase().contains('en0') ||
-                  interface.name.toLowerCase().contains('wlan') ||
-                  interface.name.toLowerCase().contains('wifi')) {
+              if (interface.name.toLowerCase().contains('en0') || interface.name.toLowerCase().contains('wlan') || interface.name.toLowerCase().contains('wifi')) {
                 return addr.address;
               }
             } else {
