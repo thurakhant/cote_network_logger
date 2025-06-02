@@ -30,6 +30,7 @@ class NetworkLogWebServer {
 
   HttpServer? _server;
   bool _isRunning = false;
+  Timer? _monitorTimer;
 
   // WebSocket clients
   final Set<WebSocket> _wsClients = <WebSocket>{};
@@ -67,9 +68,18 @@ class NetworkLogWebServer {
   ///
   /// Returns true if the server started successfully, false otherwise.
   Future<bool> start() async {
-    if (!NetworkLoggerConfig.isEnabled) return false;
-    if (!isPlatformSupported) return false;
-    if (_isRunning) return false;
+    if (!NetworkLoggerConfig.isEnabled) {
+      debugPrint('⚠️ NetworkLogWebServer: Logger is disabled');
+      return false;
+    }
+    if (!isPlatformSupported) {
+      debugPrint('⚠️ NetworkLogWebServer: Platform not supported');
+      return false;
+    }
+    if (_isRunning) {
+      debugPrint('⚠️ NetworkLogWebServer: Server already running');
+      return false;
+    }
 
     try {
       debugPrint('🚀 NetworkLogWebServer: Starting server on ${NetworkLoggerConfig.serverHost}:${NetworkLoggerConfig.serverPort}...');
@@ -78,40 +88,42 @@ class NetworkLogWebServer {
       _isRunning = true;
 
       _server!.listen((HttpRequest request) async {
-        if (request.uri.path == '/ws' && WebSocketTransformer.isUpgradeRequest(request)) {
-          final socket = await WebSocketTransformer.upgrade(request);
-          _wsClients.add(socket);
-          socket.add(
-            jsonEncode(<String, dynamic>{
-              'type': 'init',
-              'logs': NetworkLogStore.instance.getLogs(),
-            }),
+        try {
+          if (request.uri.path == '/ws' && WebSocketTransformer.isUpgradeRequest(request)) {
+            final socket = await WebSocketTransformer.upgrade(request);
+            _handleWebSocketConnection(socket);
+            return;
+          }
+
+          final headers = <String, String>{};
+          request.headers.forEach((name, values) {
+            if (values.isNotEmpty) headers[name] = values.join(',');
+          });
+
+          final shelfRequest = Request(
+            request.method,
+            request.requestedUri,
+            headers: headers,
+            body: request,
+            context: {'shelf.io.request': request},
           );
-          socket.done.then((_) => _wsClients.remove(socket));
-          return;
+
+          final shelfResponse = await handler(shelfRequest);
+          request.response.statusCode = shelfResponse.statusCode;
+          shelfResponse.headers.forEach((name, value) {
+            request.response.headers.set(name, value);
+          });
+          await shelfResponse.read().forEach(request.response.add);
+          await request.response.close();
+        } catch (e) {
+          debugPrint('❌ NetworkLogWebServer: Error handling request: $e');
+          request.response.statusCode = 500;
+          request.response.write('Internal Server Error');
+          await request.response.close();
         }
-        // Convert HttpHeaders to Map<String, String>
-        final headers = <String, String>{};
-        request.headers.forEach((name, values) {
-          if (values.isNotEmpty) headers[name] = values.join(',');
-        });
-        final shelfRequest = Request(
-          request.method,
-          request.requestedUri,
-          headers: headers,
-          body: request,
-          context: {'shelf.io.request': request},
-        );
-        final shelfResponse = await handler(shelfRequest);
-        // Write shelf response to HttpResponse
-        request.response.statusCode = shelfResponse.statusCode;
-        shelfResponse.headers.forEach((name, value) {
-          request.response.headers.set(name, value);
-        });
-        await shelfResponse.read().forEach(request.response.add);
-        await request.response.close();
       });
 
+      _startMonitoring();
       debugPrint('✅ NetworkLogWebServer: Server started successfully!');
       debugPrint('🌐 Network Logger Dashboard: $dashboardUrl');
       await _printAccessInstructions();
@@ -121,6 +133,82 @@ class NetworkLogWebServer {
       _isRunning = false;
       return false;
     }
+  }
+
+  void _handleWebSocketConnection(WebSocket socket) {
+    _wsClients.add(socket);
+    debugPrint('✅ NetworkLogWebServer: New WebSocket client connected. Total clients: ${_wsClients.length}');
+
+    // Send initial logs with more detailed information
+    final logs = NetworkLogStore.instance.getLogs();
+    final enhancedLogs = logs.map((log) {
+      return {
+        ...log,
+        'displayStatus': _getDisplayStatus(log),
+        'displayType': _getDisplayType(log),
+        'displayMethod': _getDisplayMethod(log),
+      };
+    }).toList();
+
+    socket.add(jsonEncode(<String, dynamic>{
+      'type': 'init',
+      'logs': enhancedLogs,
+      'timestamp': DateTime.now().toIso8601String(),
+    }));
+
+    socket.listen(
+      (data) {
+        try {
+          final message = jsonDecode(data.toString());
+          debugPrint('📨 NetworkLogWebServer: Received WebSocket message: $message');
+        } catch (e) {
+          debugPrint('❌ NetworkLogWebServer: Failed to parse WebSocket message: $e');
+        }
+      },
+      onError: (error) {
+        debugPrint('❌ NetworkLogWebServer: WebSocket error: $error');
+        _wsClients.remove(socket);
+      },
+      onDone: () {
+        debugPrint('👋 NetworkLogWebServer: WebSocket client disconnected');
+        _wsClients.remove(socket);
+      },
+    );
+  }
+
+  String _getDisplayStatus(Map<String, dynamic> log) {
+    final status = log['status'] as String?;
+    final statusCode = log['statusCode'] as int?;
+
+    if (status == 'error') return 'error';
+    if (status == 'pending') return 'pending';
+    if (statusCode != null) {
+      if (statusCode >= 200 && statusCode < 300) return 'success';
+      if (statusCode >= 400) return 'error';
+    }
+    return 'unknown';
+  }
+
+  String _getDisplayType(Map<String, dynamic> log) {
+    final type = log['type'] as String?;
+    if (type == 'request') return 'Request';
+    if (type == 'response') return 'Response';
+    if (type == 'error') return 'Error';
+    return 'Unknown';
+  }
+
+  String _getDisplayMethod(Map<String, dynamic> log) {
+    final method = log['method'] as String?;
+    if (method == null) return 'UNKNOWN';
+    return method.toUpperCase();
+  }
+
+  void _startMonitoring() {
+    _monitorTimer?.cancel();
+    _monitorTimer = Timer.periodic(Duration(seconds: 5), (timer) {
+      debugPrint('📊 NetworkLogWebServer: Active WebSocket clients: ${_wsClients.length}');
+      debugPrint('📊 NetworkLogStore: Current log count: ${NetworkLogStore.instance.logCount}');
+    });
   }
 
   /// Prints platform-specific instructions for accessing the dashboard.
@@ -191,10 +279,23 @@ class NetworkLogWebServer {
 
   /// Stops the web server if running.
   Future<void> stop() async {
+    _monitorTimer?.cancel();
+    _monitorTimer = null;
+
+    for (final client in _wsClients) {
+      try {
+        await client.close();
+      } catch (e) {
+        debugPrint('❌ NetworkLogWebServer: Error closing WebSocket client: $e');
+      }
+    }
+    _wsClients.clear();
+
     if (_server != null) {
       await _server!.close();
       _server = null;
       _isRunning = false;
+      debugPrint('🛑 NetworkLogWebServer: Server stopped');
     }
   }
 
@@ -213,20 +314,38 @@ class NetworkLogWebServer {
 
   /// Broadcasts a new log entry to all connected WebSocket clients.
   void broadcastLog(Map<String, dynamic> logEntry) {
-    if (!kDebugMode || _wsClients.isEmpty) return;
+    if (!kDebugMode) return;
+    if (_wsClients.isEmpty) {
+      debugPrint('⚠️ NetworkLogWebServer: No WebSocket clients connected');
+      return;
+    }
 
-    final message = jsonEncode({
-      'type': 'log',
-      'log': logEntry,
-    });
+    try {
+      // Enhance the log entry with display information
+      final enhancedLog = {
+        ...logEntry,
+        'displayStatus': _getDisplayStatus(logEntry),
+        'displayType': _getDisplayType(logEntry),
+        'displayMethod': _getDisplayMethod(logEntry),
+      };
 
-    for (final client in _wsClients) {
-      try {
-        client.add(message);
-      } catch (e) {
-        debugPrint('❌ NetworkLogWebServer: Failed to broadcast to client: $e');
-        _wsClients.remove(client);
+      final message = jsonEncode({
+        'type': 'log',
+        'log': enhancedLog,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
+      for (final client in _wsClients) {
+        try {
+          client.add(message);
+          debugPrint('✅ NetworkLogWebServer: Broadcasted log: ${logEntry['id']}');
+        } catch (e) {
+          debugPrint('❌ NetworkLogWebServer: Failed to broadcast to client: $e');
+          _wsClients.remove(client);
+        }
       }
+    } catch (e) {
+      debugPrint('❌ NetworkLogWebServer: Failed to prepare log for broadcast: $e');
     }
   }
 

@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'package:flutter/foundation.dart';
 import 'cote_network_logger.dart';
 
 /// Represents a network request log entry
@@ -66,106 +67,106 @@ class NetworkLogStore {
   /// Singleton instance
   static NetworkLogStore get instance => _instance;
 
-  final Queue<Map<String, dynamic>> _logs = Queue<Map<String, dynamic>>();
-  final Map<String, NetworkLogRequest> _requests = {};
-  final Map<String, NetworkLogResponse> _responses = {};
+  final Map<String, Map<String, dynamic>> _logs = {};
+  final Queue<String> _logOrder = Queue<String>();
 
-  /// Add a new log entry. Removes oldest if limit exceeded.
-  ///
-  /// [logEntry] The log data to store
-  void addLog(Map<String, dynamic> logEntry) {
-    if (!NetworkLoggerConfig.isEnabled) return;
-
-    // Ensure unique log ID
-    final String originalId = logEntry['id']?.toString() ?? '';
-    String uniqueId = originalId;
-    int suffix = 0;
-
-    while (_logs.any((log) => log['id'] == uniqueId)) {
-      suffix++;
-      uniqueId = '${originalId}_dup$suffix';
+  /// Add or update a log entry for a transaction.
+  void upsertLog(String transactionId, Map<String, dynamic> logUpdate) {
+    if (!NetworkLoggerConfig.isEnabled) {
+      debugPrint('⚠️ NetworkLogStore: Logger is disabled');
+      return;
     }
-
-    if (suffix > 0) {
-      logEntry = Map<String, dynamic>.from(logEntry);
-      logEntry['id'] = uniqueId;
+    try {
+      final existing = _logs[transactionId] ?? {};
+      final merged = {...existing, ...logUpdate, 'transactionId': transactionId};
+      _logs[transactionId] = merged;
+      if (!_logOrder.contains(transactionId)) {
+        _logOrder.addLast(transactionId);
+      }
+      // Remove old entries if we exceed the limit
+      while (_logOrder.length > NetworkLoggerConfig.maxLogEntries) {
+        final removedId = _logOrder.removeFirst();
+        _logs.remove(removedId);
+        debugPrint('🗑️ NetworkLogStore: Removed old log entry: $removedId');
+      }
+      NetworkLogWebServer.instance.broadcastLog(merged);
+      debugPrint('✅ NetworkLogStore: Upserted log entry: $transactionId');
+    } catch (e) {
+      debugPrint('❌ NetworkLogStore: Failed to upsert log: $e');
     }
-
-    _logs.addLast(logEntry);
-
-    // Remove old entries if we exceed the limit
-    while (_logs.length > NetworkLoggerConfig.maxLogEntries) {
-      _logs.removeFirst();
-    }
-
-    // Broadcast to WebSocket clients for real-time dashboard updates
-    NetworkLogWebServer.instance.broadcastLog(logEntry);
   }
 
-  /// Get all current log entries.
-  ///
-  /// Returns an empty list if not in debug mode or staging environment.
+  /// Get all current log entries, most recent first.
   List<Map<String, dynamic>> getLogs() {
-    if (!NetworkLoggerConfig.isEnabled) return [];
-    return _logs.toList();
+    if (!NetworkLoggerConfig.isEnabled) {
+      debugPrint('⚠️ NetworkLogStore: Logger is disabled');
+      return [];
+    }
+    return _logOrder.toList().reversed.map((id) => _logs[id]!).toList();
   }
 
   /// Clear all stored logs.
-  ///
-  /// Only clears logs in debug mode or staging environment.
   void clearLogs() {
-    if (!NetworkLoggerConfig.isEnabled) return;
+    if (!NetworkLoggerConfig.isEnabled) {
+      debugPrint('⚠️ NetworkLogStore: Logger is disabled');
+      return;
+    }
     _logs.clear();
+    _logOrder.clear();
+    debugPrint('🧹 NetworkLogStore: All logs cleared');
   }
 
-  /// Get the current number of stored logs.
   int get logCount => NetworkLoggerConfig.isEnabled ? _logs.length : 0;
 
   /// Add a request to the store
   void addRequest(NetworkLogRequest request) {
-    _requests[request.url] = request;
-    _cleanup();
+    try {
+      _logs[request.id] = request.toJson();
+      _logOrder.addLast(request.id);
+      debugPrint('✅ NetworkLogStore: Added request: ${request.id}');
+      _cleanup();
+    } catch (e) {
+      debugPrint('❌ NetworkLogStore: Failed to add request: $e');
+    }
   }
 
   /// Add a response to the store
   void addResponse(NetworkLogResponse response) {
-    _responses[response.requestId] = response;
-    _cleanup();
+    try {
+      _logs[response.requestId] = response.toJson();
+      _logOrder.addLast(response.requestId);
+      debugPrint('✅ NetworkLogStore: Added response for request: ${response.requestId}');
+      _cleanup();
+    } catch (e) {
+      debugPrint('❌ NetworkLogStore: Failed to add response: $e');
+    }
   }
 
-  /// Get a request by URL
-  NetworkLogRequest? getRequest(String url) => _requests[url];
+  /// Get a request by ID
+  Map<String, dynamic>? getRequest(String id) => _logs[id];
 
   /// Get a response by request ID
-  NetworkLogResponse? getResponse(String requestId) => _responses[requestId];
-
-  /// Get all requests
-  List<NetworkLogRequest> get requests => _requests.values.toList();
-
-  /// Get all responses
-  List<NetworkLogResponse> get responses => _responses.values.toList();
+  Map<String, dynamic>? getResponse(String requestId) => _logs[requestId];
 
   /// Clear all logs
   void clear() {
-    _requests.clear();
-    _responses.clear();
+    _logs.clear();
+    _logOrder.clear();
+    debugPrint('🧹 NetworkLogStore: All requests and responses cleared');
   }
 
   void _cleanup() {
-    if (_requests.length > NetworkLoggerConfig.maxLogEntries) {
-      final oldestRequests = _requests.values.toList()..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-      final requestsToRemove = oldestRequests.take(_requests.length - NetworkLoggerConfig.maxLogEntries).map((r) => r.url);
-      for (final url in requestsToRemove) {
-        _requests.remove(url);
+    try {
+      if (_logs.length > NetworkLoggerConfig.maxLogEntries) {
+        final oldestIds = _logOrder.toList()..sort((a, b) => a.compareTo(b));
+        final idsToRemove = oldestIds.take(_logs.length - NetworkLoggerConfig.maxLogEntries).toList();
+        for (final id in idsToRemove) {
+          _logs.remove(id);
+          debugPrint('🗑️ NetworkLogStore: Removed old log entry: $id');
+        }
       }
-    }
-
-    if (_responses.length > NetworkLoggerConfig.maxLogEntries) {
-      final oldestResponses = _responses.values.toList()..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-      final responsesToRemove = oldestResponses.take(_responses.length - NetworkLoggerConfig.maxLogEntries).map((r) => r.requestId);
-      for (final requestId in responsesToRemove) {
-        _responses.remove(requestId);
-      }
+    } catch (e) {
+      debugPrint('❌ NetworkLogStore: Error during cleanup: $e');
     }
   }
 }
