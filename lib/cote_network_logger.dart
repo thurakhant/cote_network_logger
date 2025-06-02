@@ -263,7 +263,8 @@ bool isNetworkLogServerRunning() {
 ///
 /// Returns null if the server is not running or platform is not supported.
 String? getNetworkLogDashboardUrl() {
-  if (!NetworkLogWebServer.isPlatformSupported || !NetworkLogWebServer.instance.isRunning) {
+  if (!NetworkLogWebServer.isPlatformSupported ||
+      !NetworkLogWebServer.instance.isRunning) {
     return null;
   }
   return NetworkLogWebServer.instance.dashboardUrl;

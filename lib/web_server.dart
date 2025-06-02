@@ -150,11 +150,15 @@ class NetworkLogWebServer {
       };
     }).toList();
 
-    socket.add(jsonEncode(<String, dynamic>{
-      'type': 'init',
-      'logs': enhancedLogs,
-      'timestamp': DateTime.now().toIso8601String(),
-    }));
+    socket.add(
+      jsonEncode(
+        <String, dynamic>{
+          'type': 'init',
+          'logs': enhancedLogs,
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      ),
+    );
 
     socket.listen(
       (data) {
@@ -367,7 +371,7 @@ class NetworkLogWebServer {
 
         return Response.ok(
           finalHtml,
-          headers: {
+          headers: const {
             'content-type': 'text/html',
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',

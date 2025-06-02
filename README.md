@@ -2,6 +2,17 @@
 
 A powerful Flutter package for real-time HTTP network monitoring during development and staging environments.
 
+---
+
+## 📦 What's New in 1.1.0 (2025-06-03)
+- **Single transaction per HTTP call:** No more duplicate rows for request/response. Each HTTP call is now represented by a single transaction in the dashboard.
+- **Improved log grouping:** Status updates in real-time, with clear distinction between pending, completed, and failed requests.
+- **Dart conventions:** Codebase refactored for best practices and pub.dev compliance.
+- **Better error and response body handling.**
+- **Documentation and README improvements.**
+
+---
+
 ## ✨ Features
 
 - 🔍 **Real-time network monitoring** - See HTTP requests as they happen
@@ -17,7 +28,7 @@ A powerful Flutter package for real-time HTTP network monitoring during developm
 1. **Add to your pubspec.yaml:**
    ```yaml
    dependencies:
-     cote_network_logger: ^1.0.5
+     cote_network_logger: ^1.1.0
    ```
 
 2. **Start the server in your main.dart:**
@@ -41,6 +52,14 @@ A powerful Flutter package for real-time HTTP network monitoring during developm
    ```
 
 4. **Open the dashboard URL in your browser!**
+
+---
+
+## 📝 Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for full release notes.
+
+---
 
 ## 🌍 Environment Support
 

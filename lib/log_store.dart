@@ -78,7 +78,11 @@ class NetworkLogStore {
     }
     try {
       final existing = _logs[transactionId] ?? {};
-      final merged = {...existing, ...logUpdate, 'transactionId': transactionId};
+      final merged = {
+        ...existing,
+        ...logUpdate,
+        'transactionId': transactionId,
+      };
       _logs[transactionId] = merged;
       if (!_logOrder.contains(transactionId)) {
         _logOrder.addLast(transactionId);

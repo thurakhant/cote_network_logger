@@ -120,4 +120,17 @@
 - Local network binding (localhost only)
 - No external communication
 - Memory-only storage
-- Automatic cleanup 
+- Automatic cleanup
+
+## [1.1.0] - 2025-06-03
+
+### Changed
+- Refactored log storage to use a single transaction per HTTP call (no duplicate rows)
+- Improved log grouping and status updates in dashboard
+- Updated code to follow Dart conventions and best practices
+- Enhanced error and response body handling
+- Improved documentation and README for pub.dev
+
+### Fixed
+- Fixed confusion caused by multiple log entries per request/response
+- Fixed log cleanup and memory management 
