@@ -14,6 +14,7 @@ dependencies:
     sdk: flutter
   dio: ^5.4.0
   shelf: ^1.4.1
+  shelf_static: ^1.1.2
   http: ^1.1.0
 
 dev_dependencies:

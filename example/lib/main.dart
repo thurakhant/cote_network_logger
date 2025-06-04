@@ -69,8 +69,7 @@ class _HomePageState extends State<HomePage> {
             margin: const EdgeInsets.only(right: 16),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: _getFlavorColor(NetworkLoggerConfig.currentFlavor)
-                  .withAlpha(51),
+              color: _getFlavorColor(NetworkLoggerConfig.currentFlavor).withAlpha(51),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: _getFlavorColor(NetworkLoggerConfig.currentFlavor),
@@ -304,8 +303,7 @@ class _HomePageState extends State<HomePage> {
     try {
       await requestFunction();
       setState(() {
-        _lastResponse =
-            'Request completed successfully! Check the dashboard to see the network details.';
+        _lastResponse = 'Request completed successfully! Check the dashboard to see the network details.';
       });
     } catch (e) {
       setState(() {
@@ -332,13 +330,11 @@ class _HomePageState extends State<HomePage> {
         _apiService.getPosts(),
       ]);
       setState(() {
-        _lastResponse =
-            'Multiple requests completed successfully! Check the dashboard to see concurrent requests.';
+        _lastResponse = 'Multiple requests completed successfully! Check the dashboard to see concurrent requests.';
       });
     } catch (e) {
       setState(() {
-        _lastResponse =
-            'Error in multiple requests: $e\nCheck the dashboard to see error details!';
+        _lastResponse = 'Error in multiple requests: $e\nCheck the dashboard to see error details!';
       });
     } finally {
       setState(() {
@@ -360,13 +356,11 @@ class _HomePageState extends State<HomePage> {
         await _apiService.getPosts();
       }
       setState(() {
-        _lastResponse =
-            'Batch requests completed successfully! Check the dashboard to see sequential requests.';
+        _lastResponse = 'Batch requests completed successfully! Check the dashboard to see sequential requests.';
       });
     } catch (e) {
       setState(() {
-        _lastResponse =
-            'Error in batch requests: $e\nCheck the dashboard to see error details!';
+        _lastResponse = 'Error in batch requests: $e\nCheck the dashboard to see error details!';
       });
     } finally {
       setState(() {

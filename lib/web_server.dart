@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shelf/shelf.dart';
+import 'package:shelf_static/shelf_static.dart';
 import 'dart:async';
 import 'web_server/dashboard_template.dart';
 import 'web_server/dashboard_script.dart';
@@ -362,24 +363,116 @@ class NetworkLogWebServer {
 
   /// Creates handler for serving static web assets.
   Handler _createStaticHandler() {
-    return (Request request) {
-      if (request.url.path == '' || request.url.path == '/') {
-        // Get the HTML template and inject the JavaScript
-        final html = DashboardTemplate.getHtml();
-        final script = DashboardScript.getScript();
-        final finalHtml = html.replaceAll('{{DASHBOARD_SCRIPT}}', script).replaceAll('{{TIMESTAMP}}', '');
+    // Debug current working directory
+    debugPrint('🔍 NetworkLogWebServer: Current working directory: ${Directory.current.path}');
 
-        return Response.ok(
-          finalHtml,
-          headers: const {
-            'content-type': 'text/html',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-          },
-        );
+    // Try multiple possible paths for the dashboard build
+    final possiblePaths = [
+      // If running from project root
+      'dashboard/build/web',
+      // If running from example directory
+      '../dashboard/build/web',
+      // Absolute path construction attempts
+      '${Directory.current.path}/dashboard/build/web',
+      '${Directory.current.path}/../dashboard/build/web',
+    ];
+
+    String? dashboardPath;
+    Directory? dashboardDir;
+
+    // Try each possible path until we find one that exists
+    for (final path in possiblePaths) {
+      final dir = Directory(path);
+      debugPrint('🔍 NetworkLogWebServer: Checking path: ${dir.path}');
+      if (dir.existsSync()) {
+        dashboardPath = path;
+        dashboardDir = dir;
+        debugPrint('✅ NetworkLogWebServer: Found dashboard at: ${dir.path}');
+        break;
       }
-      return Response.notFound('Not found');
+    }
+
+    if (dashboardDir != null && dashboardPath != null) {
+      // List files in the dashboard directory for debugging
+      final files = dashboardDir.listSync();
+      debugPrint('📁 Dashboard files: ${files.map((f) => f.path.split('/').last).join(', ')}');
+
+      // Serve the Flutter Web dashboard build with proper MIME types
+      return Pipeline().addMiddleware(_mimeTypeMiddleware()).addHandler(createStaticHandler(
+            dashboardDir.path,
+            defaultDocument: 'index.html',
+            serveFilesOutsidePath: true,
+          ));
+    } else {
+      debugPrint('❌ NetworkLogWebServer: Flutter Web dashboard not found in any of these paths:');
+      for (final path in possiblePaths) {
+        debugPrint('   - $path');
+      }
+      debugPrint('   Current working directory: ${Directory.current.path}');
+      debugPrint('   Run: cd dashboard && flutter build web --release');
+
+      // Fallback to the original HTML template if Flutter build doesn't exist
+      return (Request request) {
+        if (request.url.path == '' || request.url.path == '/') {
+          // Get the HTML template and inject the JavaScript
+          final html = DashboardTemplate.getHtml();
+          final script = DashboardScript.getScript();
+          final finalHtml = html.replaceAll('{{DASHBOARD_SCRIPT}}', script).replaceAll('{{TIMESTAMP}}', '');
+
+          return Response.ok(
+            finalHtml,
+            headers: const {
+              'content-type': 'text/html',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+            },
+          );
+        }
+        return Response.notFound('Not found');
+      };
+    }
+  }
+
+  /// Middleware to set correct MIME types for Flutter Web assets
+  Middleware _mimeTypeMiddleware() {
+    return (Handler innerHandler) {
+      return (Request request) async {
+        final response = await innerHandler(request);
+
+        // Set correct MIME types for Flutter Web files
+        final path = request.url.path.toLowerCase();
+        Map<String, String> headers = Map.from(response.headers);
+
+        if (path.endsWith('.js')) {
+          headers['content-type'] = 'application/javascript; charset=utf-8';
+          headers['cache-control'] = 'no-cache, no-store, must-revalidate';
+        } else if (path.endsWith('.html')) {
+          headers['content-type'] = 'text/html; charset=utf-8';
+          headers['cache-control'] = 'no-cache, no-store, must-revalidate';
+        } else if (path.endsWith('.css')) {
+          headers['content-type'] = 'text/css; charset=utf-8';
+        } else if (path.endsWith('.json')) {
+          headers['content-type'] = 'application/json; charset=utf-8';
+        } else if (path.endsWith('.png')) {
+          headers['content-type'] = 'image/png';
+        } else if (path.endsWith('.ico')) {
+          headers['content-type'] = 'image/x-icon';
+        } else if (path.endsWith('.wasm')) {
+          headers['content-type'] = 'application/wasm';
+        } else if (path.endsWith('.map')) {
+          headers['content-type'] = 'application/json; charset=utf-8';
+        }
+
+        // Add CORS headers for all responses
+        headers['Access-Control-Allow-Origin'] = '*';
+        headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
+        headers['Access-Control-Allow-Headers'] = 'Content-Type';
+
+        debugPrint('🌐 NetworkLogWebServer: Serving ${request.url.path} with content-type: ${headers['content-type'] ?? 'default'}');
+
+        return response.change(headers: headers);
+      };
     };
   }
 
