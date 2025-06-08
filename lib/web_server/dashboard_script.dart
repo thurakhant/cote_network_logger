@@ -314,14 +314,14 @@ class DashboardScript {
             }
             
             if (req.requestBody) {
-                const isLargeBody = JSON.stringify(req.requestBody).length > 1000;
+                const isLargeBody = JSON.stringify(req.requestBody).length > 5000; // Increased threshold
                 html += createExpandableSection(
                     'Request Body', 
                     req.requestBody, // Pass raw body instead of formatted JSON
                     '📝',
                     transaction.id, 
                     'requestBody',
-                    !isLargeBody // Default expanded if small, collapsed if large
+                    true // Always expand by default for better developer experience
                 );
             }
             
@@ -345,16 +345,22 @@ class DashboardScript {
                 );
             }
             
-            if (res.responseBody) {
-                const isLargeBody = JSON.stringify(res.responseBody).length > 1000;
+            if (res.responseBody !== undefined && res.responseBody !== null) {
+                const isLargeBody = JSON.stringify(res.responseBody).length > 5000; // Increased threshold
                 html += createExpandableSection(
                     'Response Body', 
                     res.responseBody, // Pass raw body instead of formatted JSON
                     '📄',
                     transaction.id, 
                     'responseBody',
-                    !isLargeBody // Default expanded if small, collapsed if large
+                    true // Always expand by default for better developer experience
                 );
+            } else {
+                // Show debug info if response body is missing
+                html += `<div style="padding: 16px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; margin: 16px 0;">
+                    <strong>🔍 Debug Info:</strong> Response body not found<br>
+                    <small>Available fields: ${Object.keys(res).join(', ')}</small>
+                </div>`;
             }
             
             // Additional response metadata if available

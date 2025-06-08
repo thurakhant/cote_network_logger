@@ -224,7 +224,7 @@ Future<bool> startNetworkLogServer() async {
   }
 
   if (!NetworkLogWebServer.isPlatformSupported) {
-    if (kIsWeb) {
+    if (kIsWeb && kDebugMode) {
       debugPrint('💡 Cote Network Logger: Web platform detected');
       debugPrint('💡 Dashboard not available - use browser DevTools instead');
       debugPrint('💡 Network requests will still be logged to console');
@@ -236,7 +236,7 @@ Future<bool> startNetworkLogServer() async {
     final success = await NetworkLogWebServer.instance.start();
     return success;
   } catch (e) {
-    debugPrint('❌ Failed to start Network Logger: $e');
+    if (kDebugMode) debugPrint('❌ Failed to start Network Logger: $e');
     return false;
   }
 }
@@ -263,8 +263,7 @@ bool isNetworkLogServerRunning() {
 ///
 /// Returns null if the server is not running or platform is not supported.
 String? getNetworkLogDashboardUrl() {
-  if (!NetworkLogWebServer.isPlatformSupported ||
-      !NetworkLogWebServer.instance.isRunning) {
+  if (!NetworkLogWebServer.isPlatformSupported || !NetworkLogWebServer.instance.isRunning) {
     return null;
   }
   return NetworkLogWebServer.instance.dashboardUrl;

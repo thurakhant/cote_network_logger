@@ -19,7 +19,6 @@ class CoteNetworkLogger extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     if (!NetworkLoggerConfig.isEnabled) {
-      debugPrint('⚠️ CoteNetworkLogger: Logger is disabled');
       handler.next(options);
       return;
     }
@@ -32,14 +31,13 @@ class CoteNetworkLogger extends Interceptor {
         'method': options.method,
         'url': options.uri.toString(),
         'headers': options.headers,
-        'body': options.data,
+        'requestBody': options.data,
         'timestamp': DateTime.now().toIso8601String(),
         'status': 'pending',
       });
-      debugPrint('✅ CoteNetworkLogger: Intercepted request: ${options.uri} (transactionId: $transactionId)');
       handler.next(options);
     } catch (e) {
-      debugPrint('❌ CoteNetworkLogger: Failed to log request: $e');
+      if (kDebugMode) debugPrint('❌ CoteNetworkLogger: Failed to log request: $e');
       handler.next(options);
     }
   }
@@ -47,7 +45,6 @@ class CoteNetworkLogger extends Interceptor {
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
     if (!NetworkLoggerConfig.isEnabled) {
-      debugPrint('⚠️ CoteNetworkLogger: Logger is disabled');
       handler.next(response);
       return;
     }
@@ -60,14 +57,13 @@ class CoteNetworkLogger extends Interceptor {
         'url': response.requestOptions.uri.toString(),
         'statusCode': response.statusCode,
         'headers': response.headers.map,
-        'body': response.data,
+        'responseBody': response.data,
         'timestamp': DateTime.now().toIso8601String(),
         'status': 'completed',
       });
-      debugPrint('✅ CoteNetworkLogger: Intercepted response: ${response.statusCode} for ${response.requestOptions.uri} (transactionId: $transactionId)');
       handler.next(response);
     } catch (e) {
-      debugPrint('❌ CoteNetworkLogger: Failed to log response: $e');
+      if (kDebugMode) debugPrint('❌ CoteNetworkLogger: Failed to log response: $e');
       handler.next(response);
     }
   }
@@ -75,7 +71,6 @@ class CoteNetworkLogger extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     if (!NetworkLoggerConfig.isEnabled) {
-      debugPrint('⚠️ CoteNetworkLogger: Logger is disabled');
       handler.next(err);
       return;
     }
@@ -88,15 +83,14 @@ class CoteNetworkLogger extends Interceptor {
         'url': err.requestOptions.uri.toString(),
         'statusCode': err.response?.statusCode,
         'headers': err.response?.headers.map,
-        'body': err.response?.data,
+        'responseBody': err.response?.data,
         'error': err.message,
         'timestamp': DateTime.now().toIso8601String(),
         'status': 'error',
       });
-      debugPrint('❌ CoteNetworkLogger: Intercepted error: ${err.message} for ${err.requestOptions.uri} (transactionId: $transactionId)');
       handler.next(err);
     } catch (e) {
-      debugPrint('❌ CoteNetworkLogger: Failed to log error: $e');
+      if (kDebugMode) debugPrint('❌ CoteNetworkLogger: Failed to log error: $e');
       handler.next(err);
     }
   }

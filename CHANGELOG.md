@@ -1,5 +1,44 @@
 # Changelog
 
+## [1.2.0] - 2025-06-08
+
+### Added
+- Beautiful, modern dashboard UI with glass-morphism design and gradient backgrounds
+- Enhanced visual design with smooth animations and hover effects
+- Comprehensive JSON syntax highlighting for request/response bodies
+- Smart content expansion - small responses expand by default, large ones collapse
+- Copy-to-clipboard functionality for all request/response data
+- Professional Material Design components throughout the interface
+- Improved responsive design for mobile and desktop
+
+### Changed
+- **BREAKING**: Fixed field naming consistency - interceptor now correctly saves `requestBody` and `responseBody`
+- Completely redesigned dashboard with modern UI/UX principles
+- Response body now visible by default (was hidden for privacy, restored for developer needs)
+- Improved typography with system fonts and better spacing
+- Enhanced color scheme with modern indigo/purple/pink gradients
+- Better error handling with conditional debug logging
+- Reduced production logging for cleaner console output
+- Improved accessibility with better contrast and touch targets
+
+### Fixed
+- Fixed response body display issue - now properly shows in dashboard
+- Fixed field name mismatch between interceptor and dashboard
+- Corrected expandable section behavior for request/response data
+- Improved WebSocket connection stability
+- Better handling of large response bodies with smart truncation
+
+### Performance
+- Optimized logging - reduced unnecessary debug prints in production
+- Better memory management with conditional logging
+- Improved dashboard rendering performance
+- Faster WebSocket message processing
+
+### Security
+- Conditional debug logging - only shows detailed logs in debug mode
+- Better error handling without exposing internal details in production
+- Improved platform detection and graceful fallbacks
+
 ## [1.0.9] - 2025-06-02
 
 ### Added

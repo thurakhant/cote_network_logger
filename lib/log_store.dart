@@ -73,7 +73,6 @@ class NetworkLogStore {
   /// Add or update a log entry for a transaction.
   void upsertLog(String transactionId, Map<String, dynamic> logUpdate) {
     if (!NetworkLoggerConfig.isEnabled) {
-      debugPrint('⚠️ NetworkLogStore: Logger is disabled');
       return;
     }
     try {
@@ -91,19 +90,16 @@ class NetworkLogStore {
       while (_logOrder.length > NetworkLoggerConfig.maxLogEntries) {
         final removedId = _logOrder.removeFirst();
         _logs.remove(removedId);
-        debugPrint('🗑️ NetworkLogStore: Removed old log entry: $removedId');
       }
       NetworkLogWebServer.instance.broadcastLog(merged);
-      debugPrint('✅ NetworkLogStore: Upserted log entry: $transactionId');
     } catch (e) {
-      debugPrint('❌ NetworkLogStore: Failed to upsert log: $e');
+      if (kDebugMode) debugPrint('❌ NetworkLogStore: Failed to upsert log: $e');
     }
   }
 
   /// Get all current log entries, most recent first.
   List<Map<String, dynamic>> getLogs() {
     if (!NetworkLoggerConfig.isEnabled) {
-      debugPrint('⚠️ NetworkLogStore: Logger is disabled');
       return [];
     }
     return _logOrder.toList().reversed.map((id) => _logs[id]!).toList();
@@ -112,12 +108,10 @@ class NetworkLogStore {
   /// Clear all stored logs.
   void clearLogs() {
     if (!NetworkLoggerConfig.isEnabled) {
-      debugPrint('⚠️ NetworkLogStore: Logger is disabled');
       return;
     }
     _logs.clear();
     _logOrder.clear();
-    debugPrint('🧹 NetworkLogStore: All logs cleared');
   }
 
   int get logCount => NetworkLoggerConfig.isEnabled ? _logs.length : 0;
@@ -127,10 +121,9 @@ class NetworkLogStore {
     try {
       _logs[request.id] = request.toJson();
       _logOrder.addLast(request.id);
-      debugPrint('✅ NetworkLogStore: Added request: ${request.id}');
       _cleanup();
     } catch (e) {
-      debugPrint('❌ NetworkLogStore: Failed to add request: $e');
+      if (kDebugMode) debugPrint('❌ NetworkLogStore: Failed to add request: $e');
     }
   }
 
@@ -139,10 +132,9 @@ class NetworkLogStore {
     try {
       _logs[response.requestId] = response.toJson();
       _logOrder.addLast(response.requestId);
-      debugPrint('✅ NetworkLogStore: Added response for request: ${response.requestId}');
       _cleanup();
     } catch (e) {
-      debugPrint('❌ NetworkLogStore: Failed to add response: $e');
+      if (kDebugMode) debugPrint('❌ NetworkLogStore: Failed to add response: $e');
     }
   }
 
@@ -156,7 +148,6 @@ class NetworkLogStore {
   void clear() {
     _logs.clear();
     _logOrder.clear();
-    debugPrint('🧹 NetworkLogStore: All requests and responses cleared');
   }
 
   void _cleanup() {
@@ -166,11 +157,10 @@ class NetworkLogStore {
         final idsToRemove = oldestIds.take(_logs.length - NetworkLoggerConfig.maxLogEntries).toList();
         for (final id in idsToRemove) {
           _logs.remove(id);
-          debugPrint('🗑️ NetworkLogStore: Removed old log entry: $id');
         }
       }
     } catch (e) {
-      debugPrint('❌ NetworkLogStore: Error during cleanup: $e');
+      if (kDebugMode) debugPrint('❌ NetworkLogStore: Error during cleanup: $e');
     }
   }
 }

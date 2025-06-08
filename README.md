@@ -1,57 +1,74 @@
-# 🚀 CoteNetworkLogger
+# 🚀 Cote Network Logger
 
-A powerful Flutter package for real-time HTTP network monitoring during development and staging environments.
+**Beautiful real-time HTTP network monitoring for Flutter developers**
+
+A powerful, developer-friendly Flutter package that provides a stunning web dashboard for monitoring HTTP requests in real-time. Perfect for debugging, testing, and development workflows.
 
 ---
 
-## 📦 What's New in 1.1.0 (2025-06-03)
-- **Single transaction per HTTP call:** No more duplicate rows for request/response. Each HTTP call is now represented by a single transaction in the dashboard.
-- **Improved log grouping:** Status updates in real-time, with clear distinction between pending, completed, and failed requests.
-- **Dart conventions:** Codebase refactored for best practices and pub.dev compliance.
-- **Better error and response body handling.**
-- **Documentation and README improvements.**
+## 📦 What's New in 1.2.0 (2025-06-08)
+- **🎨 Beautiful Modern UI:** Complete dashboard redesign with glass-morphism effects and gradient backgrounds
+- **✨ Enhanced Visual Design:** Smooth animations, hover effects, and professional Material Design components
+- **📄 Response Body Display:** Fixed response body visibility - now shows properly in dashboard with syntax highlighting
+- **🔧 Field Name Consistency:** Fixed interceptor to correctly save `requestBody` and `responseBody` fields
+- **📋 Copy-to-Clipboard:** One-click copy functionality for all request/response data
+- **🚀 Smart Content Expansion:** Small responses expand by default, large ones collapse for better performance
+- **🔧 Production Optimizations:** Reduced logging in production builds for cleaner console output
 
 ---
 
 ## ✨ Features
 
-- 🔍 **Real-time network monitoring** - See HTTP requests as they happen
-- 📱 **Cross-platform support** - Android, iOS, macOS, Windows, Linux
-- 🌐 **Web dashboard** - Beautiful browser-based interface
-- 🎨 **Material Design 3** - Modern, responsive UI
-- 🔄 **Auto-refresh** - Smart refresh that pauses during user interaction
-- 💾 **Memory efficient** - In-memory storage with auto-cleanup
-- 🌍 **Environment support** - Debug, Staging, and Release modes
+- 🎨 **Beautiful Modern UI** - Glass-morphism design with gradient backgrounds and smooth animations
+- 🔍 **Real-time Monitoring** - Watch HTTP requests as they happen with live WebSocket updates
+- 📄 **Complete Request/Response View** - See headers, bodies, status codes, and timing information
+- 📋 **Copy-to-Clipboard** - One-click copy for all request/response data
+- 🔍 **Advanced Filtering** - Search by URL, method, status code, or content
+- 📱 **Cross-platform** - Works on Android, iOS, macOS, Windows, Linux
+- 🌐 **Zero Setup** - Just add the interceptor and start monitoring
+- 💾 **Memory Efficient** - Smart cleanup with configurable limits
+- 🔒 **Secure by Default** - Only runs in debug/staging, disabled in production
+- 🚀 **Developer Friendly** - Clean API, comprehensive documentation, and great DX
 
-## 🛠️ Quick Start
+## 🚀 Quick Start
 
-1. **Add to your pubspec.yaml:**
-   ```yaml
-   dependencies:
-     cote_network_logger: ^1.1.0
-   ```
+Get up and running in under 2 minutes:
 
-2. **Start the server in your main.dart:**
-   ```dart
-   import 'package:cote_network_logger/cote_network_logger.dart';
+### 1️⃣ Install
+```yaml
+dependencies:
+  cote_network_logger: ^1.2.0
+```
 
-   void main() async {
-     WidgetsFlutterBinding.ensureInitialized();
-     await startNetworkLogServer();
-     runApp(MyApp());
-   }
-   ```
+### 2️⃣ Initialize
+```dart
+import 'package:cote_network_logger/cote_network_logger.dart';
 
-3. **Add the interceptor to your Dio instance:**
-   ```dart
-   import 'package:dio/dio.dart';
-   import 'package:cote_network_logger/cote_network_logger.dart';
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Start the network logger (only works in debug/staging)
+  await startNetworkLogServer();
+  
+  runApp(MyApp());
+}
+```
 
-   final dio = Dio();
-   dio.interceptors.add(const CoteNetworkLogger());
-   ```
+### 3️⃣ Add Interceptor
+```dart
+import 'package:dio/dio.dart';
+import 'package:cote_network_logger/cote_network_logger.dart';
 
-4. **Open the dashboard URL in your browser!**
+final dio = Dio();
+dio.interceptors.add(const CoteNetworkLogger());
+```
+
+### 4️⃣ Open Dashboard
+- **iOS Simulator**: `http://localhost:3000` in your Mac browser
+- **Android Emulator**: `http://localhost:3000` in emulator browser  
+- **Physical Device**: `http://YOUR_DEVICE_IP:3000` in any browser
+
+That's it! 🎉 Make HTTP requests and watch them appear in real-time.
 
 ---
 
