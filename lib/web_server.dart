@@ -31,6 +31,7 @@ class NetworkLogWebServer {
 
   HttpServer? _server;
   bool _isRunning = false;
+  String _dashboardHost = 'localhost';
   Timer? _monitorTimer;
 
   // WebSocket clients
@@ -94,6 +95,7 @@ class NetworkLogWebServer {
         NetworkLoggerConfig.serverHost,
         NetworkLoggerConfig.serverPort,
       );
+      _dashboardHost = await _findDashboardHost();
       _isRunning = true;
 
       _server!.listen((HttpRequest request) async {
@@ -138,7 +140,11 @@ class NetworkLogWebServer {
       _startMonitoring();
       if (kDebugMode) {
         debugPrint('✅ NetworkLogWebServer: Server started successfully!');
-        debugPrint('🌐 Network Logger Dashboard: $dashboardUrl');
+      }
+      debugPrint('🌐 Network Logger Dashboard: $dashboardUrl');
+      if (_dashboardHost == 'localhost') {
+        debugPrint(
+            'No LAN address found. Use localhost or adb forward tcp:3000 tcp:3000.');
       }
       return true;
     } catch (e) {
@@ -246,13 +252,38 @@ class NetworkLogWebServer {
   bool get isRunning => _isRunning;
 
   /// Returns the URL where the dashboard is accessible.
-  String get dashboardUrl {
-    if (Platform.isIOS) {
-      return 'http://localhost:3000 (simulator) or http://YOUR_MAC_IP:3000 (physical device)';
-    } else if (Platform.isAndroid) {
-      return 'http://10.0.2.2:3000 (emulator) or http://YOUR_MAC_IP:3000 (physical device)';
+  String get dashboardUrl =>
+      'http://$_dashboardHost:${NetworkLoggerConfig.serverPort}';
+
+  Future<String> _findDashboardHost() async {
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLoopback: false,
+        includeLinkLocal: false,
+      );
+      // Prefer Wi-Fi over wired LAN when both are present.
+      bool isWifi(NetworkInterface interface) =>
+          RegExp(r'^(wlan|wifi|wi-fi|en0)', caseSensitive: false)
+              .hasMatch(interface.name);
+      interfaces.sort((a, b) => (isWifi(b) ? 1 : 0) - (isWifi(a) ? 1 : 0));
+      for (final interface in interfaces) {
+        if (!RegExp(r'^(wlan|wifi|wi-fi|en\d|eth|ethernet)',
+                caseSensitive: false)
+            .hasMatch(interface.name)) continue;
+        for (final address in interface.addresses) {
+          final bytes = address.rawAddress;
+          if (bytes[0] == 10 ||
+              (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
+              (bytes[0] == 192 && bytes[1] == 168)) {
+            return address.address;
+          }
+        }
+      }
+    } catch (_) {
+      // Discovery may be unavailable; localhost still supports adb forwarding.
     }
-    return 'http://localhost:${NetworkLoggerConfig.serverPort}';
+    return 'localhost';
   }
 
   /// Broadcasts a new log entry to all connected WebSocket clients.
