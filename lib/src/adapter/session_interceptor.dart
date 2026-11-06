@@ -13,12 +13,14 @@ class CaptureController {
     CapturePolicy? policy,
     LoggerLimits limits = const LoggerLimits(),
     void Function(String)? onDiagnostic,
+    this.onChanged,
   })  : engine = CaptureEngine(policy: policy, limits: limits),
         store = CallStore(limits: limits, onDiagnostic: onDiagnostic),
         _onDiagnostic = onDiagnostic;
   final CaptureEngine engine;
   final CallStore store;
   final void Function(String)? _onDiagnostic;
+  final void Function()? onChanged;
   bool isCapturing = false;
   int _sequence = 0;
   void activate(String sessionId) {
@@ -31,7 +33,11 @@ class CaptureController {
     store.deactivate();
   }
 
-  void clear() => store.clear();
+  void clear() {
+    store.clear();
+    onChanged?.call();
+  }
+
   String nextId() => '${++_sequence}';
   void diagnostic(String code) {
     try {
@@ -42,20 +48,20 @@ class CaptureController {
 
 /// Internal interceptor until the session facade replaces the v1 entrypoint.
 class SessionDioInterceptor extends Interceptor {
-  SessionDioInterceptor(this.capture);
-  final CaptureController capture;
+  SessionDioInterceptor(this._capture);
+  final CaptureController _capture;
   final Expando<_Observation> _observations = Expando<_Observation>();
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    if (!capture.isCapturing) {
+    if (!_capture.isCapturing) {
       handler.next(options);
       return;
     }
     try {
       final now = DateTime.now().toUtc();
       final stopwatch = Stopwatch()..start();
-      final request = capture.engine.request(
+      final request = _capture.engine.request(
         method: options.method,
         url: _rawUrl(options),
         queryParameters: options.queryParameters,
@@ -64,10 +70,11 @@ class SessionDioInterceptor extends Interceptor {
         startedAt: now,
         bodyOverride: _summary(options.data),
       );
-      final admission = capture.store
-          .admit(id: capture.nextId(), request: request, observedAt: now);
+      final admission = _capture.store
+          .admit(id: _capture.nextId(), request: request, observedAt: now);
       // A rejected admission is still observed: a later callback must not
       // reconstruct it as an unmatched call.
+      if (admission != null) _capture.onChanged?.call();
       _observations[options] = _Observation(
         admission,
         stopwatch,
@@ -75,14 +82,14 @@ class SessionDioInterceptor extends Interceptor {
       );
     } catch (_) {
       _observations[options] = _Observation(null, null, 0);
-      capture.diagnostic('captureFailed');
+      _capture.diagnostic('captureFailed');
     }
     handler.next(options);
   }
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
-    if (!capture.isCapturing) {
+    if (!_capture.isCapturing) {
       handler.next(response);
       return;
     }
@@ -92,7 +99,7 @@ class SessionDioInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (!capture.isCapturing) {
+    if (!_capture.isCapturing) {
       handler.next(err);
       return;
     }
@@ -110,7 +117,7 @@ class SessionDioInterceptor extends Interceptor {
       if (marker != null &&
           (marker.terminal ||
               marker.admission == null ||
-              !capture.store.accepts(marker.admission!))) {
+              !_capture.store.accepts(marker.admission!))) {
         return;
       }
       if (marker != null) {
@@ -125,7 +132,7 @@ class SessionDioInterceptor extends Interceptor {
               ? NetworkCallState.completed
               : NetworkCallState.failed;
       final request = marker == null
-          ? capture.engine.request(
+          ? _capture.engine.request(
               method: options.method,
               url: _rawUrl(options),
               queryParameters: options.queryParameters,
@@ -139,12 +146,12 @@ class SessionDioInterceptor extends Interceptor {
       final usedHeaders = marker?.headerBytes ??
           utf8.encode(jsonEncode(request!.headers)).length;
       final rawTarget = _rawUrl(options);
-      final target = rawTarget.length <= capture.engine.limits.maxUrlBytes
+      final target = rawTarget.length <= _capture.engine.limits.maxUrlBytes
           ? Uri.tryParse(rawTarget)?.normalizePath()
           : null;
       final capturedResponse = response == null
           ? null
-          : capture.engine.response(
+          : _capture.engine.response(
               host: target?.host ?? '',
               path: target?.path ?? '',
               method: options.method,
@@ -154,17 +161,17 @@ class SessionDioInterceptor extends Interceptor {
               statusCode: response.statusCode,
               endedAt: now,
               headerBudgetBytes:
-                  (capture.engine.limits.maxHeadersBytes - usedHeaders)
-                      .clamp(0, capture.engine.limits.maxHeadersBytes),
+                  (_capture.engine.limits.maxHeadersBytes - usedHeaders)
+                      .clamp(0, _capture.engine.limits.maxHeadersBytes),
             );
       final capturedError = kind == null
           ? null
           : CoreRecords.error(
               kind,
-              maxBytes: capture.engine.limits.maxErrorBytes,
+              maxBytes: _capture.engine.limits.maxErrorBytes,
             );
       if (marker != null) {
-        capture.store.finish(
+        _capture.store.finish(
           marker.admission!,
           response: capturedResponse,
           error: capturedError,
@@ -176,8 +183,8 @@ class SessionDioInterceptor extends Interceptor {
         // Keep a weak terminal marker so duplicate unmatched callbacks are ignored.
         _observations[options] = _Observation(null, null, usedHeaders)
           ..terminal = true;
-        capture.store.admitUnmatched(
-          id: capture.nextId(),
+        _capture.store.admitUnmatched(
+          id: _capture.nextId(),
           request: request!,
           observedAt: now,
           endedAt: now,
@@ -186,15 +193,16 @@ class SessionDioInterceptor extends Interceptor {
           error: capturedError,
         );
       }
+      _capture.onChanged?.call();
     } catch (_) {
-      capture.diagnostic('captureFailed');
+      _capture.diagnostic('captureFailed');
     }
   }
 
   // Never use RequestOptions.uri: it recursively converts raw query values.
   String _rawUrl(RequestOptions options) {
     final path = options.path;
-    final cap = capture.engine.limits.maxUrlBytes;
+    final cap = _capture.engine.limits.maxUrlBytes;
     if (path.length > cap) return path;
     if (path.startsWith('http:') || path.startsWith('https:')) return path;
     final base = options.baseUrl;

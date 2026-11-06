@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:cote_network_logger/src/core/models.dart';
 import 'package:cote_network_logger/src/core/limits.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -143,5 +144,60 @@ void main() {
     );
     expect(store.calls, isEmpty);
     expect(store.encodedBytes, 0);
+  });
+  test('cached record budgets exactly match JSON bytes across body variants',
+      () {
+    final bodies = [
+      CoreRecords.body(
+        kind: BodyKind.json,
+        content: {
+          'é😀': [false, 0, '', null, '\n\u0000'],
+        },
+      ),
+      CoreRecords.body(kind: BodyKind.text, content: '\ud800é😀\t"\\'),
+      CoreRecords.body(kind: BodyKind.binarySummary, knownSizeBytes: 999999999),
+      CoreRecords.body(kind: BodyKind.omitted, omissionReason: 'policyOmitted'),
+    ];
+    for (final body in bodies) {
+      final store = CallStore(limits: const LoggerLimits())..reset('s');
+      final admission = store.admit(
+        id: 'é',
+        observedAt: now,
+        request: CoreRecords.request(
+          method: 'POST',
+          url: 'https://x/é',
+          body: body,
+          headers: {
+            'content-type': ['application/json', 'é\n'],
+          },
+          startedAt: now,
+        ),
+      )!;
+      for (var phase = 0; phase < 2; phase++) {
+        final call = store.calls.single;
+        final actual =
+            utf8.encode(jsonEncode(CoreRecords.callJson(call))).length;
+        expect(CoreRecords.callEncodedBytes(call), actual);
+        expect(store.encodedBytes, actual + 2);
+        expect(
+          jsonEncode(CoreRecords.callEncodingView(call)),
+          jsonEncode(CoreRecords.callJson(call)),
+        );
+        if (phase == 0) {
+          store.finish(
+            admission,
+            state: NetworkCallState.failed,
+            response: CoreRecords.response(
+              endedAt: now,
+              body: body,
+              statusCode: 500,
+            ),
+            error: CoreRecords.error(NetworkErrorKind.unknown),
+            durationMicros: 23,
+            endedAt: now,
+          );
+        }
+      }
+    }
   });
 }

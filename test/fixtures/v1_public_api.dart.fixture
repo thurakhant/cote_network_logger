@@ -1,0 +1,55 @@
+// Compile-only inventory of the published 1.x API. Never execute this function.
+// The 2.0 migration test expects this fixture to stop compiling at cutover.
+import 'package:cote_network_logger/cote_network_logger.dart';
+import 'package:cote_network_logger/web_server/dashboard_template.dart';
+import 'package:cote_network_logger/web_server/dashboard_script.dart';
+import 'package:dio/dio.dart';
+
+Future<void> publishedV1Api() async {
+  final configType = NetworkLoggerConfig;
+  final configValues = [NetworkLoggerConfig.kDebug, NetworkLoggerConfig.kStaging,
+    NetworkLoggerConfig.kProduction, NetworkLoggerConfig.currentFlavor,
+    NetworkLoggerConfig.isEnabled, NetworkLoggerConfig.maxLogEntries,
+    NetworkLoggerConfig.serverPort, NetworkLoggerConfig.serverHost,
+    NetworkLoggerConfig.availableEnvironments,
+    NetworkLoggerConfig.isEnabledInFlavor('debug'),
+    NetworkLoggerConfig.isValidEnvironment('debug')];
+  NetworkLoggerConfig.addCustomEnvironment('fixture');
+  final environment = NetworkLoggerEnvironment(name: 'fixture', enableByDefault: false, description: 'fixture');
+  final environmentValues = [environment.name, environment.enableByDefault,
+    environment.description, NetworkLoggerEnvironment.debug,
+    NetworkLoggerEnvironment.staging, NetworkLoggerEnvironment.production,
+    NetworkLoggerEnvironment.qa, NetworkLoggerEnvironment.beta,
+    NetworkLoggerEnvironment.custom(name: 'fixture', enableByDefault: false, description: 'fixture')];
+  final logger = NetworkLogger();
+  NetworkLogger.configure(environments: [environment], enableInRelease: false);
+  final started = await NetworkLogger.start();
+  final loggerValues = [NetworkLogger.dashboardUrl, NetworkLogger.isRunning];
+  final interceptor = const CoteNetworkLogger();
+  final options = RequestOptions(path: 'https://fixture.invalid');
+  interceptor.onRequest(options, RequestInterceptorHandler());
+  interceptor.onResponse(Response(requestOptions: options), ResponseInterceptorHandler());
+  interceptor.onError(DioException(requestOptions: options), ErrorInterceptorHandler());
+  final request = NetworkLogRequest(id: 'fixture', method: 'GET', url: 'https://fixture.invalid', headers: {}, body: null, timestamp: DateTime.utc(2026));
+  final requestValues = [request.id, request.method, request.url, request.headers, request.body, request.timestamp, request.toJson()];
+  final response = NetworkLogResponse(requestId: 'fixture', statusCode: 200, headers: {}, body: null, error: null, timestamp: DateTime.utc(2026));
+  final responseValues = [response.requestId, response.statusCode, response.headers, response.body, response.error, response.timestamp, response.toJson()];
+  final store = NetworkLogStore.instance;
+  store.upsertLog('fixture', {});
+  store.addRequest(request);
+  store.addResponse(response);
+  final storeValues = [store.getLogs(), store.logCount, store.getRequest('fixture'), store.getResponse('fixture')];
+  store.clearLogs(); store.clear();
+  final server = NetworkLogWebServer.instance;
+  final serverValues = [NetworkLogWebServer.isPlatformSupported, server.isRunning, server.dashboardUrl];
+  await server.start(); await server.stop();
+  server.broadcastLog({});
+  await startNetworkLogServer(); await stopNetworkLogServer(); await startDashboard();
+  final helperValues = [isNetworkLogServerRunning(), getNetworkLogDashboardUrl(), isNetworkLoggerSupported(), dashboardUrl, isDashboardRunning];
+  final assets = [DashboardTemplate(), DashboardTemplate.getHtml(), DashboardScript(), DashboardScript.getScript()];
+  // Keep accesses observable to static analysis without executing the fixture.
+  Object inventory = [configType, configValues, environmentValues, logger,
+    started, loggerValues, requestValues, responseValues, storeValues,
+    serverValues, helperValues, assets];
+  assert(inventory is List);
+}

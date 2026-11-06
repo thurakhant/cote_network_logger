@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'bounded_json.dart';
 import 'limits.dart';
 part 'store.dart';
+part 'encoded_size.dart';
 
 enum NetworkCallState { pending, completed, failed, cancelled }
 
@@ -47,10 +47,14 @@ class NetworkCall {
   final bool incompleteRequest;
   final DateTime observedAt;
   final DateTime? endedAt;
-  Map<String, Object?> _toJson() => {
+  late final int _encodedBytes = _jsonObjectBytes(_toJson(detached: false), {
+    'request': request._encodedBytes,
+    'response': response?._encodedBytes ?? 4,
+  });
+  Map<String, Object?> _toJson({bool detached = true}) => {
         'id': id,
-        'request': request._toJson(),
-        'response': response?._toJson(),
+        'request': request._toJson(detached: detached),
+        'response': response?._toJson(detached: detached),
         'error': error?._toJson(),
         'state': state.name,
         'durationMicros': durationMicros,
@@ -81,13 +85,16 @@ class NetworkRequest {
   final BodySnapshot body;
   final DateTime? startedAt;
   final List<String> captureWarnings;
-  Map<String, Object?> _toJson() => {
+  late final int _encodedBytes =
+      _jsonObjectBytes(_toJson(detached: false), {'body': body._encodedBytes});
+  Map<String, Object?> _toJson({bool detached = true}) => {
         'method': method,
         'url': url,
-        'headers': detachedJsonCopy(headers),
-        'body': body._toJson(),
+        'headers': detached ? detachedJsonCopy(headers) : headers,
+        'body': body._toJson(detached: detached),
         'startedAt': startedAt?.toUtc().toIso8601String(),
-        'captureWarnings': detachedJsonCopy(captureWarnings),
+        'captureWarnings':
+            detached ? detachedJsonCopy(captureWarnings) : captureWarnings,
       };
 }
 
@@ -109,12 +116,15 @@ class NetworkResponse {
   final BodySnapshot body;
   final DateTime endedAt;
   final List<String> captureWarnings;
-  Map<String, Object?> _toJson() => {
+  late final int _encodedBytes =
+      _jsonObjectBytes(_toJson(detached: false), {'body': body._encodedBytes});
+  Map<String, Object?> _toJson({bool detached = true}) => {
         'statusCode': statusCode,
-        'headers': detachedJsonCopy(headers),
-        'body': body._toJson(),
+        'headers': detached ? detachedJsonCopy(headers) : headers,
+        'body': body._toJson(detached: detached),
         'endedAt': endedAt.toUtc().toIso8601String(),
-        'captureWarnings': detachedJsonCopy(captureWarnings),
+        'captureWarnings':
+            detached ? detachedJsonCopy(captureWarnings) : captureWarnings,
       };
 }
 
@@ -127,7 +137,8 @@ class BodySnapshot {
     this.omissionReason,
     this.content,
     this.summary,
-  });
+    int contentBytes = 4,
+  }) : _contentBytes = contentBytes;
   final BodyKind kind;
   final String? contentType;
   final int? knownSizeBytes;
@@ -135,14 +146,17 @@ class BodySnapshot {
   final String? omissionReason;
   final Object? content;
   final BodySummary? summary;
-  Map<String, Object?> _toJson() => {
+  final int _contentBytes;
+  late final int _encodedBytes =
+      _jsonObjectBytes(_toJson(detached: false), {'content': _contentBytes});
+  Map<String, Object?> _toJson({bool detached = true}) => {
         'kind': kind.name,
         'contentType': contentType,
         'knownSizeBytes': knownSizeBytes,
         'truncated': truncated,
         'omissionReason': omissionReason,
-        'content': detachedJsonCopy(content),
-        'summary': summary?._toJson(),
+        'content': detached ? detachedJsonCopy(content) : content,
+        'summary': summary?._toJson(detached: detached),
       };
 }
 
@@ -155,10 +169,11 @@ class BodySummary {
   final int? fieldCount;
   final int? fileCount;
   final List<String> contentTypes;
-  Map<String, Object?> _toJson() => {
+  Map<String, Object?> _toJson({bool detached = true}) => {
         'fieldCount': fieldCount,
         'fileCount': fileCount,
-        'contentTypes': detachedJsonCopy(contentTypes),
+        'contentTypes':
+            detached ? detachedJsonCopy(contentTypes) : contentTypes,
       };
 }
 
@@ -214,6 +229,14 @@ class NetworkError {
 
 /// Internal bridge for sanitized adapters; not exported by the package.
 class CoreRecords {
+  static Map<String, Object?> callJson(NetworkCall call) => call._toJson();
+  // Borrow immutable nested collections for internal encoding only.
+  static Map<String, Object?> callEncodingView(NetworkCall call) =>
+      call._toJson(detached: false);
+  static int callEncodedBytes(NetworkCall call) => call._encodedBytes;
+  static LoggerChange change(String sessionId, int version) =>
+      LoggerChange._(sessionId: sessionId, version: version);
+
   static NetworkRequest request({
     required String method,
     required String url,
@@ -302,13 +325,15 @@ class CoreRecords {
           end += width;
         }
         final cut = end < value.length;
+        final captured = value.substring(0, end);
         return BodySnapshot._(
           kind: kind,
           contentType: contentType,
           knownSizeBytes: bytes,
           truncated: truncated || cut,
           omissionReason: cut ? 'byteLimit' : omissionReason,
-          content: value.substring(0, end),
+          content: captured,
+          contentBytes: _jsonStringBytes(captured),
         );
       }
       final copied = BoundedJson.copy(content, limits: limits);
@@ -327,6 +352,7 @@ class CoreRecords {
         truncated: truncated,
         omissionReason: omissionReason,
         content: copied.value,
+        contentBytes: copied.sizeBytes,
       );
     }
     return BodySnapshot._(

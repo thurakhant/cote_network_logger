@@ -163,19 +163,9 @@ class CallStore {
   }
 
   bool _put(NetworkCall call) {
-    // Encode only one already bounded record, never the whole store.
-    final bytes = utf8
-        .encode(
-          jsonEncode(
-            LoggerSnapshot._(
-              sessionId: '',
-              version: 0,
-              clearGeneration: 0,
-              calls: [call],
-            ).toJson()['calls'],
-          ),
-        )
-        .length;
+    // Child byte counts are computed once from captured immutable values.
+    // Two bytes preserve the prior conservative single-record array budget.
+    final bytes = call._encodedBytes + 2;
     if (bytes > limits.maxStoreBytes) {
       if (_records.remove(call.id) != null) {
         _bytes -= _sizes.remove(call.id)!;
