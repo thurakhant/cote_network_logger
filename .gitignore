@@ -25,3 +25,9 @@ doc/api/
 
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# Editable dashboard source and local browser-test dependencies.
+!web/dashboard.js
+node_modules/
+playwright-report/
+test-results/

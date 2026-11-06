@@ -1,16 +1,18 @@
-# cote_network_logger_example
+# Explicit-session example
 
-A new Flutter project.
+Run from this directory with `flutter run`. Tap **Start session**, then **Send
+test GET**. Requests go to JSONPlaceholder only when you tap the request button.
+Bodies remain metadata-only and dashboard access stays on loopback.
 
-## Getting Started
+Tap **Reveal private pairing link** to display the credential-bearing link in
+this app. Open it in your own browser. Do not share, log or screenshot it. On
+Android, first run `adb forward tcp:3000 tcp:3000` on your laptop.
 
-This project is a starting point for a Flutter application.
+**Stop session** stops capture and closes the server. The widget disposes its
+session and Dio client when removed. Profile/release also requires
+`--dart-define=NETWORK_LOGGER_ENABLED=true`; runtime configuration remains an
+independent gate. `STAGING_ENV` does not enable the logger.
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+See the [package guide](../README.md) for explicit LAN access, optional JSON field
+capture and 1.x migration. This example belongs to the unpublished 2.0.0 local
+release candidate. Browser and device acceptance gates remain open.

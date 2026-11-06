@@ -1,0 +1,10 @@
+{
+  "name": "cote-network-logger-dashboard-checks",
+  "private": true,
+  "scripts": {
+    "test:dashboard": "node test/dashboard_v2_test.cjs && node test/dashboard_export_test.cjs && node test/dashboard_browser_test.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.65.0"
+  }
+}

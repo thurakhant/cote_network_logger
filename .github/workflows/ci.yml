@@ -10,6 +10,9 @@ permissions:
 
 jobs:
   check:
+    strategy:
+      matrix:
+        flutter: ['3.24.5', '3.47.9']
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -17,8 +20,23 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: '3.47.9'
+          flutter-version: ${{ matrix.flutter }}
       - run: flutter pub get
-      - run: dart format --output=none --set-exit-if-changed .
+      - run: dart run tool/embed_dashboard.dart --check
+      - if: matrix.flutter == '3.47.9'
+        run: dart format --output=none --set-exit-if-changed .
       - run: flutter analyze
       - run: flutter test
+
+  dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:dashboard

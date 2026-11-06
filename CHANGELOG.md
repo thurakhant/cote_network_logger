@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.0.0] - Local release candidate (unpublished)
+
+### Breaking
+- Replace singleton/global startup, configuration, environment and store APIs with an explicitly owned `NetworkLoggerSession` and `CoteNetworkLogger(session: ...)`.
+- Capture only while a session is running. Profile/release requires both runtime enablement and `NETWORK_LOGGER_ENABLED=true`; `STAGING_ENV` no longer enables logging.
+- Use immutable call models and schema-v2 snapshots. Remove raw record injection and legacy public dashboard implementation paths.
+- Replace unauthenticated legacy routes with authenticated `/api/v2` HTTP snapshots and change notifications. Legacy data routes return 410.
+
+### Added
+- Loopback by default, explicit LAN access, private browser pairing, credential rotation and origin/host checks.
+- Metadata-only body defaults, bounded capture/store budgets, field allowlists and mandatory credential redaction.
+- Typed startup results, lifecycle cleanup, sanitized diagnostics and clear-generation tracking.
+- Dashboard pause/resume, filtering, detail inspection and capture-aware JSON/HAR/cURL exports. HAR timings use an explicitly labelled synthetic wait, not measured TTFB.
+- Migration guide and explicit-session example. SDK/Dio matrix checks cover Flutter 3.24.5/Dart 3.5.4 and Flutter 3.47.9/Dart 3.13.7 with Dio 5.4.0 and 5.11.1; final browser, device and performance release gates remain open.
+
 ## [1.2.1] - 2026-11-06
 
 ### Fixed
