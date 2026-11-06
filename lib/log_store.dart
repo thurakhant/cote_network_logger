@@ -1,4 +1,7 @@
 import 'dart:collection';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'cote_network_logger.dart';
 
@@ -82,6 +85,11 @@ class NetworkLogStore {
         ...logUpdate,
         'transactionId': transactionId,
       };
+      for (final key in ['requestBody', 'responseBody']) {
+        if (logUpdate.containsKey(key)) {
+          merged[key] = _safeBody(logUpdate[key]);
+        }
+      }
       _logs[transactionId] = merged;
       if (!_logOrder.contains(transactionId)) {
         _logOrder.addLast(transactionId);
@@ -94,6 +102,23 @@ class NetworkLogStore {
       NetworkLogWebServer.instance.broadcastLog(merged);
     } catch (e) {
       if (kDebugMode) debugPrint('❌ NetworkLogStore: Failed to upsert log: $e');
+    }
+  }
+
+  // Snapshot JSON values so later caller mutations cannot poison the log list.
+  dynamic _safeBody(dynamic body) {
+    if (body is FormData) {
+      return '[FormData: ${body.fields.length} fields, ${body.files.length} files]';
+    }
+    if (body is TypedData) {
+      return '[${body.runtimeType}: ${body.lengthInBytes} bytes]';
+    }
+    try {
+      return jsonDecode(jsonEncode(body));
+    } catch (_) {
+      final size =
+          body is Map || body is List ? ', ${body.length} entries' : '';
+      return '[${body.runtimeType}$size: not JSON-serializable]';
     }
   }
 
