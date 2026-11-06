@@ -84,6 +84,36 @@ async function until(predicate,message){for(let i=0;i<100;i++){if(predicate())re
       h.update({version:4,calls:[call('latest','https://example.test/latest')]});h.release();
       await page.waitForFunction(()=>document.getElementById('logsTableBody').textContent.includes('/latest'));
       assert.doesNotMatch(await page.locator('#logsTableBody').textContent(),/\/stale/);
+      // Pause freezes visible records while capture and acknowledgements continue.
+      await page.locator('#pauseButton').click();
+      const pendingCall=call('pending','https://example.test/pending');pendingCall.state='pending';pendingCall.durationMicros=null;pendingCall.response=null;
+      h.update({version:5,calls:[pendingCall,call('latest','https://example.test/latest')]});
+      await page.waitForFunction(()=>document.getElementById('waitingCount').textContent==='1 calls waiting');
+      assert.doesNotMatch(await page.locator('#logsTableBody').textContent(),/example.test\/pending/);
+      async function exported(button){const event=page.waitForEvent('download');await page.locator(button).click();const download=await event;return JSON.parse(fs.readFileSync(await download.path(),'utf8'));}
+      const frozen=await exported('#exportJson');assert.deepEqual(frozen.calls.map(c=>c.id),['latest']);assert.equal(frozen.version,4);assert.equal(frozen._cote.wireExact,false);
+      await page.locator('#pauseButton').click();
+      await page.waitForFunction(()=>document.getElementById('pauseButton').textContent==='Pause');
+      assert.match(await page.locator('#logsTableBody').textContent(),/Unknown/);
+      assert.match(await page.locator('#logsTableBody').textContent(),/12.5 ms/);
+      await page.getByRole('checkbox',{name:'Select call latest',exact:true}).check();
+      const selected=await exported('#exportJson');assert.deepEqual(selected.calls.map(c=>c.id),['latest']);
+      await page.locator('#exportScope').selectOption('filtered');
+      await page.locator('#searchInput').fill('/pending');
+      const filtered=await exported('#exportJson');assert.deepEqual(filtered.calls.map(c=>c.id),['pending']);
+      await page.locator('#exportHar').click();assert.match(await page.locator('#notice').textContent(),/No eligible HAR calls/);
+      await page.locator('#searchInput').fill('');await page.locator('#exportHar').click();
+      await page.waitForFunction(()=>document.getElementById('exportDialog').open);
+      assert.match(await page.locator('#exportReasons').textContent(),/pending.*duration is unknown/);
+      const har=await exported('#exportConfirm');assert.equal(har.log.entries.length,1);assert.equal(har.log.entries[0]._cote.callId,'latest');
+      await page.locator('#searchInput').fill('no-such-call');await page.locator('#exportJson').click();assert.match(await page.locator('#notice').textContent(),/No calls to export/);
+      await page.locator('#searchInput').fill('');await page.locator('#pauseButton').click();
+      h.update({version:6,clearGeneration:2,calls:[]});
+      await page.waitForFunction(()=>document.getElementById('logCount').textContent==='0');
+      assert.equal(await page.locator('#selectionCount').textContent(),'0 selected','clear invalidates paused selection');
+      await page.locator('#pauseButton').click();await page.waitForFunction(()=>document.getElementById('pauseButton').textContent==='Pause');
+      h.update({version:7,calls:[call('latest','https://example.test/latest')]});
+      await page.waitForFunction(()=>document.getElementById('logCount').textContent==='1');
       const before=h.requests.filter(r=>r.path==='/api/v2/events').length;h.eof();
       await until(()=>h.requests.filter(r=>r.path==='/api/v2/events').length>before,'normal EOF did not reconnect');
       await page.setViewportSize({width:390,height:844});
@@ -94,7 +124,7 @@ async function until(predicate,message){for(let i=0;i<100;i++){if(predicate())re
       const stopped=h.requests.length;await wait(1200);assert.equal(h.requests.length,stopped,'401 stops retries');
       assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>window.__violations),[],'strict CSP works');
       for(const req of h.requests.filter(r=>r.path.startsWith('/api/'))){assert.equal(req.auth,'Bearer browser-test-token');assert.ok(!req.path.includes('browser-test-token'));}
-      console.log(name+': pairing, CSP/XSS, copy fallback, remote clear, stale snapshot, EOF reconnect and 401 checks passed');
+      console.log(name+': pairing, CSP/XSS, copy fallback, pause/resume, JSON/HAR downloads, remote clear, stale snapshot, EOF reconnect and 401 checks passed');
       // Screenshot preparation injects inline styles in Playwright WebKit.
       // Keep artifact acquisition on a separate page AFTER the strict CSP
       // functional assertions, so app violations cannot be hidden by filtering.

@@ -37,6 +37,12 @@
                 <button class="refresh-btn" id="refreshButton">🔄 Refresh</button>
                 
                 <button class="refresh-btn" id="clearButton">Clear</button>
+                <button class="refresh-btn" id="pauseButton">Pause</button>
+                <span id="waitingCount" aria-live="polite"></span>
+                <select id="exportScope" class="filter-select" aria-label="Export scope"><option value="filtered">Filtered calls</option><option value="selected">Selected calls</option></select>
+                <button class="refresh-btn" id="exportJson">Export JSON</button>
+                <button class="refresh-btn" id="exportHar">Export HAR</button>
+                <span id="selectionCount" aria-live="polite">0 selected</span>
                 <div class="stats">
                     <div class="stat-item">
                         <div class="stat-value" id="logCount">0</div>
@@ -67,17 +73,20 @@
                 <table class="log-table">
                     <thead>
                         <tr>
+                            <th><input type="checkbox" id="selectFiltered" aria-label="Select filtered calls"></th>
                             <th></th>
                             <th>Type</th>
                             <th>Method</th>
                             <th>URL</th>
                             <th>Status</th>
+                            <th title="Observed at Dio interception">Duration</th>
+                            <th title="Response body captured bytes, not transferred wire bytes">Captured size</th>
                             <th>Time</th>
                         </tr>
                     </thead>
                     <tbody id="logsTableBody">
                         <tr>
-                            <td colspan="6">
+                            <td colspan="9">
                                 No captured calls.<br>
                                 <small>Pair this browser to load calls</small>
                             </td>
@@ -89,6 +98,7 @@
     </div>
     
     <dialog id="copyDialog"><h2>Copy manually</h2><p>Clipboard unavailable. Select and copy this text.</p><textarea id="copyText" aria-label="Text to copy" readonly></textarea><button id="copyClose">Close</button></dialog>
+    <dialog id="exportDialog"><h2>Some calls cannot be exported to HAR</h2><p id="exportReasons"></p><p>Capture at Dio; not byte-exact network traffic.</p><button id="exportConfirm">Download eligible calls</button><button id="exportCancel">Cancel</button></dialog>
     <script src="/dashboard.js" defer></script>
 </body>
 </html>

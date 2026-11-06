@@ -25,6 +25,62 @@
     if (captured.text !== null) parts.push('--data-raw',shellQuote(captured.text));
     return {text:parts.join(' '), warnings:[...new Set([...warnings,...captured.warnings])]};
   }
+  function formatDuration(call) {
+    return call.state==='pending' || !Number.isFinite(call.durationMicros) || call.durationMicros<0 ? '—' : (call.durationMicros/1000).toFixed(2).replace(/\.?0+$/,'')+' ms';
+  }
+  function formatCapturedSize(call) {
+    const size=call.response?.body?.knownSizeBytes;
+    if(!Number.isFinite(size) || size<0) return 'Unknown';
+    return size<1024 ? size+' B' : (size/1024).toFixed(1)+' KiB';
+  }
+  function createViewState() {return {paused:false,resumePending:false,frozen:null,selected:new Set(),detail:null};}
+  function snapshotOf(state,calls=state.calls) {return {schemaVersion:2,sessionId:state.sessionId,version:state.version,clearGeneration:state.clearGeneration,calls};}
+  function pauseView(view,state) {view.paused=true;view.frozen=snapshotOf(state,[...state.calls]);}
+  function visibleSnapshot(state,view) {return view.paused && view.frozen ? view.frozen : snapshotOf(state);}
+  function invalidateView(view,state) {view.selected.clear();view.detail=null;if(view.paused)view.frozen=snapshotOf(state,[]);}
+  function waitingCount(state,view) {if(!view.paused)return 0;const frozen=new Set((view.frozen?.calls||[]).map(c=>c.id));return state.calls.filter(c=>!frozen.has(c.id)).length;}
+  function exportCall(call) {
+    const output=JSON.parse(JSON.stringify(call));
+    for(const part of [output.request,output.response]) {
+      if(!part)continue;
+      for(const name of Object.keys(part.headers||{})) if(deniedHeaders.test(name)) {delete part.headers[name];(part.captureWarnings||=[]).push('headerOmitted');}
+      const body=part.body;if(!body)continue;
+      const captured=bodyCopy(body,part.captureWarnings||[]);
+      if(captured.text===null && body.kind!=='absent') {
+        body.content=null;
+        body.omissionReason=body.omissionReason||captured.warnings[0]||body.kind;
+        if(['json','text'].includes(body.kind))body.kind='omitted';
+      }
+    }
+    return output;
+  }
+  function buildJsonExport(snapshot,calls) {
+    if(!calls.length)throw Error('No calls to export. Select calls or change the filter.');
+    return {...snapshotOf(snapshot,calls.map(exportCall)),_cote:{capturePoint:'dio',wireExact:false,comment:'Sanitized capture at Dio interception; not byte-exact network traffic.'}};
+  }
+  function buildHarExport(snapshot,calls) {
+    if(!calls.length)throw Error('No calls to export. Select calls or change the filter.');
+    const entries=[],skipped=[];
+    const headers=values=>Object.entries(values||{}).flatMap(([name,list])=>deniedHeaders.test(name)?[]:list.map(value=>({name,value})));
+    for(const original of calls) {
+      let url;
+      try {url=new URL(original.request.url);if(!['http:','https:'].includes(url.protocol))throw Error();}
+      catch(_){skipped.push({id:original.id,reason:'URL is not an absolute HTTP URL'});continue;}
+      if(!original.request.startedAt || !Number.isFinite(Date.parse(original.request.startedAt))) {skipped.push({id:original.id,reason:'Request start is unknown'});continue;}
+      if(!Number.isFinite(original.durationMicros) || original.durationMicros<0 || original.state==='pending') {skipped.push({id:original.id,reason:'Observed duration is unknown'});continue;}
+      const call=exportCall(original),request=call.request,response=call.response;
+      url.hash='';url.username='';url.password='';
+      const requestBody=bodyCopy(request.body,request.captureWarnings||[]),responseBody=bodyCopy(response?.body,response?.captureWarnings||[]);
+      const mime=part=>part?.body?.contentType||part?.headers?.['content-type']?.[0]||'';
+      const harRequest={method:request.method,url:url.href,httpVersion:'',cookies:[],headers:headers(request.headers),queryString:[...url.searchParams].map(([name,value])=>({name,value})),headersSize:-1,bodySize:-1};
+      if(requestBody.text!==null)harRequest.postData={mimeType:mime(request),text:requestBody.text};
+      const known=response?.body?.knownSizeBytes;
+      const content={size:Number.isFinite(known)&&known>=0?known:-1,mimeType:mime(response)};
+      if(responseBody.text!==null)content.text=responseBody.text;
+      entries.push({startedDateTime:request.startedAt,time:call.durationMicros/1000,request:harRequest,response:{status:response?.statusCode??0,statusText:'',httpVersion:'',cookies:[],headers:headers(response?.headers),content,redirectURL:'',headersSize:-1,bodySize:-1},cache:{},timings:{blocked:-1,dns:-1,connect:-1,send:0,wait:call.durationMicros/1000,receive:0,ssl:-1},comment:'Synthetic HAR timing: wait is observed Dio total, not measured TTFB; network phases are unavailable. Sizes are sanitized captured bytes, not wire bytes.',_cote:{capturePoint:'dio',observedDurationMicros:call.durationMicros,timingAllocation:'syntheticWait',callId:call.id,state:call.state,capturedSizeBytes:known??null,requestBodyReasons:requestBody.warnings,responseBodyReasons:responseBody.warnings}});
+    }
+    return {har:{log:{version:'1.2',creator:{name:'CoTe Network Logger',version:'2'},entries,comment:'Sanitized Dio capture; not byte-exact network traffic.'}},skipped};
+  }
   function createState() { return {sessionId:null,version:-1,clearGeneration:-1,calls:[],selected:null,epoch:0}; }
   function applySnapshot(state, snapshot) {
     if (snapshot.schemaVersion !== 2 || typeof snapshot.sessionId !== 'string' || !integer(snapshot.version) || !integer(snapshot.clearGeneration) || !Array.isArray(snapshot.calls)) throw Error('Invalid snapshot');
@@ -87,6 +143,7 @@
           if(applySnapshot(state,snapshot)) { etag=res.headers.get('etag'); if(epoch!==state.epoch) options.onInvalidate?.(); options.onSnapshot?.(state); }
         }
         status(streamLive ? 'Live' : 'Polling — notifications disconnected.');
+        options.onSynced?.(state);
       } catch (_) { if(own===generation && token) status('Offline — showing stale captured calls.'); }
       finally { flight=false; if(dirty && token) schedule(); }
     }
@@ -145,12 +202,12 @@
     return {pair,refresh:schedule,clear,stop,state};
   }
   function mount(win) {
-    const doc=win.document, el=id=>doc.getElementById(id);
+    const doc=win.document, el=id=>doc.getElementById(id), view=createViewState();let pendingExport=null;
     function node(tag,text,cls) { const n=doc.createElement(tag); if(text!==undefined) n.textContent=text; if(cls)n.className=cls; return n; }
     const dialog=el('copyDialog');
     function closeCopy() { el('copyText').value=''; if(dialog.open) dialog.close(); }
     function notice(text) {el('notice').textContent=text;}
-    const client=createClient({fetch:win.fetch.bind(win),onStatus:text=>{el('wsText').textContent=text;el('wsText').classList.toggle('live',text==='Live');el('wsDot').classList.toggle('live',text==='Live');notice(text==='Live' ? 'Connected. Captured at Dio; this may differ from bytes sent over the network.' : text);},onInvalidate:()=>{closeCopy();render();},onSnapshot:render});
+    const client=createClient({fetch:win.fetch.bind(win),onStatus:text=>{el('wsText').textContent=text;el('wsText').classList.toggle('live',text==='Live');el('wsDot').classList.toggle('live',text==='Live');notice(text==='Live' ? 'Connected. Captured at Dio; this may differ from bytes sent over the network.' : text);if(text.startsWith('Offline')&&view.resumePending){view.resumePending=false;updatePause();}},onInvalidate:()=>{closeCopy();pendingExport=null;if(el('exportDialog').open)el('exportDialog').close();invalidateView(view,client.state);render();},onSnapshot:()=>{if(view.paused)updatePause();else render();},onSynced:()=>{if(view.resumePending){view.resumePending=false;view.paused=false;view.frozen=null;render();}}});
     function copy(value, warnings=[]) {
       const epoch=client.state.epoch;
       notice(warnings.length ? 'Incomplete capture: '+warnings.join(', ') : 'Captured at Dio; this may differ from bytes sent over the network.');
@@ -170,20 +227,47 @@
       const visible=body && ['json','text'].includes(body.kind) ? (body.kind==='json'?JSON.stringify(body.content,null,2):body.content) : JSON.stringify(body?.summary || {},null,2);
       section(parent,title+' — '+label,visible,result.text,result.warnings);
     }
-    function render() {
-      const state=client.state, tbody=el('logsTableBody');tbody.replaceChildren();
+    function filteredCalls(calls) {
       const search=el('searchInput').value.toLowerCase(),method=el('methodFilter').value,status=el('statusFilter').value;
-      const calls=state.calls.filter(c=>{const code=c.response?.statusCode;return (!method||c.request.method===method)&&(!status||String(code).startsWith(status[0]))&&(!search||[c.request.url,c.request.method,code,c.state].join(' ').toLowerCase().includes(search));});
+      return calls.filter(c=>{const code=c.response?.statusCode;return (!method||c.request.method===method)&&(!status||String(code).startsWith(status[0]))&&(!search||[c.request.url,c.request.method,code,c.state].join(' ').toLowerCase().includes(search));});
+    }
+    function updatePause() {
+      el('pauseButton').textContent=view.resumePending?'Resuming…':view.paused?'Resume':'Pause';el('pauseButton').disabled=view.resumePending;
+      el('waitingCount').textContent=view.paused?waitingCount(client.state,view)+' calls waiting':'';
+    }
+    function download(value,extension) {
+      const blob=new win.Blob([JSON.stringify(value,null,2)],{type:extension==='har'?'application/json':'application/json'}),url=win.URL.createObjectURL(blob);
+      const link=doc.createElement('a');link.href=url;link.download='cote-dio-capture-'+new Date().toISOString().replace(/[:.]/g,'-')+'.'+extension;doc.body.appendChild(link);link.click();link.remove();win.setTimeout(()=>win.URL.revokeObjectURL(url),1000);
+    }
+    function exportCalls(format) {
+      const snapshot=visibleSnapshot(client.state,view);
+      const calls=el('exportScope').value==='selected'?snapshot.calls.filter(c=>view.selected.has(c.id)):filteredCalls(snapshot.calls);
+      try {
+        if(format==='json'){download(buildJsonExport(snapshot,calls),'json');notice('Exported sanitized Dio capture; not wire-exact network traffic.');return;}
+        const result=buildHarExport(snapshot,calls);
+        if(!result.har.log.entries.length){notice('No eligible HAR calls. '+result.skipped.map(s=>s.reason).join('; '));return;}
+        if(result.skipped.length){pendingExport={har:result.har,epoch:client.state.epoch};el('exportReasons').textContent=result.skipped.length+' skipped: '+result.skipped.map(s=>s.id+' — '+s.reason).join('; ');el('exportDialog').showModal();return;}
+        download(result.har,'har');notice('Exported sanitized Dio capture; network phases and wire sizes are unknown.');
+      }catch(error){notice(error.message);}
+    }
+    function render() {
+      const state=visibleSnapshot(client.state,view), tbody=el('logsTableBody');tbody.replaceChildren();updatePause();
+      const visibleIds=new Set(state.calls.map(c=>c.id));for(const id of view.selected)if(!visibleIds.has(id))view.selected.delete(id);
+      if(!visibleIds.has(view.detail))view.detail=null;
+      el('selectionCount').textContent=view.selected.size+' selected';
+      const calls=filteredCalls(state.calls);
+      el('selectFiltered').checked=calls.length>0&&calls.every(c=>view.selected.has(c.id));
       el('logCount').textContent=state.calls.length;el('requestCount').textContent=state.calls.length;el('errorCount').textContent=state.calls.filter(c=>c.error).length;el('lastUpdated').textContent=new Date().toLocaleTimeString();
-      if(!calls.length) {const row=node('tr');const cell=node('td','No captured calls match.','no-logs');cell.colSpan=6;row.appendChild(cell);tbody.appendChild(row);}
+      if(!calls.length) {const row=node('tr');const cell=node('td','No captured calls match.','no-logs');cell.colSpan=9;row.appendChild(cell);tbody.appendChild(row);}
       for(const call of calls) {
-        const row=node('tr'); const expanded=state.selected===call.id;
-        const toggle=button(expanded?'−':'+',()=>{state.selected=expanded?null:call.id;render();});toggle.setAttribute('aria-label','Details for '+call.request.method+' '+call.request.url);toggle.setAttribute('aria-expanded',String(expanded));
+        const row=node('tr'); const expanded=view.detail===call.id;
+        const toggle=button(expanded?'−':'+',()=>{view.detail=expanded?null:call.id;render();});toggle.setAttribute('aria-label','Details for '+call.request.method+' '+call.request.url);toggle.setAttribute('aria-expanded',String(expanded));
+        const selection=node('td'),checkbox=node('input');checkbox.type='checkbox';checkbox.checked=view.selected.has(call.id);checkbox.setAttribute('aria-label','Select call '+call.id);checkbox.addEventListener('change',()=>{if(checkbox.checked)view.selected.add(call.id);else view.selected.delete(call.id);el('exportScope').value='selected';render();});selection.appendChild(checkbox);row.appendChild(selection);
         const first=node('td'); first.appendChild(toggle);row.appendChild(first);
-        const values=[call.state,call.request.method,call.request.url,call.response?.statusCode ?? '—',call.request.startedAt || 'Unknown start'];
-        values.forEach((v,i)=>{const cell=node('td',String(v),i===2?'url-cell':i===4?'timestamp':undefined); if(i===2)cell.title=v;row.appendChild(cell);});tbody.appendChild(row);
+        const values=[call.state,call.request.method,call.request.url,call.response?.statusCode ?? '—',formatDuration(call),formatCapturedSize(call),call.request.startedAt || 'Unknown start'];
+        values.forEach((v,i)=>{const cell=node('td',String(v),i===2?'url-cell':i===6?'timestamp':undefined); if(i===2)cell.title=v;row.appendChild(cell);});tbody.appendChild(row);
         if(!expanded)continue;
-        const detailRow=node('tr',undefined,'details-row expanded'),cell=node('td',undefined,'details-cell');cell.colSpan=6;const panel=node('div',undefined,'details-content');
+        const detailRow=node('tr',undefined,'details-row expanded'),cell=node('td',undefined,'details-cell');cell.colSpan=9;const panel=node('div',undefined,'details-content');
         panel.appendChild(node('h3',call.request.method+' '+call.request.url));
         if(call.error)panel.appendChild(node('p',call.error.kind+': '+call.error.description));
         if(call.incompleteRequest)panel.appendChild(node('p','Incomplete request: the start was not observed.'));
@@ -195,11 +279,17 @@
       }
     }
     for(const id of ['searchInput','methodFilter','statusFilter']) el(id).addEventListener(id==='searchInput'?'input':'change',render);
+    el('pauseButton').addEventListener('click',()=>{if(view.paused){view.resumePending=true;updatePause();client.refresh();}else{pauseView(view,client.state);render();}});
+    el('selectFiltered').addEventListener('change',()=>{for(const call of filteredCalls(visibleSnapshot(client.state,view).calls)){if(el('selectFiltered').checked)view.selected.add(call.id);else view.selected.delete(call.id);}el('exportScope').value='selected';render();});
+    el('exportJson').addEventListener('click',()=>exportCalls('json'));el('exportHar').addEventListener('click',()=>exportCalls('har'));
+    el('exportCancel').addEventListener('click',()=>{pendingExport=null;el('exportDialog').close();});
+    el('exportConfirm').addEventListener('click',()=>{if(pendingExport&&pendingExport.epoch===client.state.epoch)download(pendingExport.har,'har');pendingExport=null;el('exportDialog').close();});
+    el('exportDialog').addEventListener('close',()=>{pendingExport=null;});
     el('refreshButton').addEventListener('click',()=>client.refresh());el('clearButton').addEventListener('click',()=>client.clear());el('copyClose').addEventListener('click',closeCopy);dialog.addEventListener('close',()=>{el('copyText').value='';});
     function pairing() {const hash=win.location.hash;win.history.replaceState(null,'',win.location.pathname+win.location.search);const value=new URLSearchParams(hash.slice(1)).get('token');client.pair(value);}
     win.addEventListener('hashchange',pairing);win.addEventListener('pagehide',()=>client.stop());pairing();render();return client;
   }
-  const api={shellQuote,bodyCopy,curlForCall,createState,applySnapshot,readNotifications,copyText,createClient,mount};
+  const api={shellQuote,bodyCopy,curlForCall,createState,applySnapshot,readNotifications,copyText,createClient,mount,formatDuration,formatCapturedSize,createViewState,pauseView,visibleSnapshot,invalidateView,waitingCount,buildJsonExport,buildHarExport};
   if(typeof module!=='undefined' && module.exports) module.exports=api;
   else {root.CoteDashboard=api;mount(root);}
 })(typeof window!=='undefined'?window:globalThis);
