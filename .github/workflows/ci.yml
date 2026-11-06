@@ -19,6 +19,20 @@ jobs:
           channel: stable
           flutter-version: '3.47.9'
       - run: flutter pub get
+      - run: dart run tool/embed_dashboard.dart --check
       - run: dart format --output=none --set-exit-if-changed .
       - run: flutter analyze
       - run: flutter test
+
+  dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:dashboard

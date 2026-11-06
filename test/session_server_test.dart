@@ -278,8 +278,11 @@ void securityTests() {
     expect(after.statusCode, 200);
     expect(jsonDecode(await utf8.decoder.bind(after).join())['calls'], isEmpty);
   });
-  test('disconnect releases the snapshot slot for the next client', () async {
-    final h = await _harness();
+  test('disconnect releases snapshot slot by configured deadline', () async {
+    const deadline = Duration(milliseconds: 500);
+    const cleanupBudget = Duration(seconds: 2);
+    final h =
+        await _harness(server: IoSessionServer(snapshotTimeout: deadline));
     for (var i = 0; i < 100; i++) {
       h.store.admit(
         id: '$i',
@@ -298,10 +301,11 @@ void securityTests() {
     final sub = first.listen((_) {});
     await sub.cancel();
     disconnected.close(force: true);
-    // Disconnection is delivered asynchronously by the OS. Retry only the
-    // documented bounded-busy response until the transfer releases its slot.
+    // Older supported SDKs may not surface idle EOF promptly. Cleanup must
+    // still finish by the configured response deadline plus scheduling margin.
+    final elapsed = Stopwatch()..start();
     HttpClientResponse? next;
-    for (var i = 0; i < 50; i++) {
+    while (elapsed.elapsed < cleanupBudget) {
       next = await h.request('GET', '/api/v2/calls');
       if (next.statusCode == 200) break;
       expect(next.statusCode, 429);
@@ -309,6 +313,7 @@ void securityTests() {
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
     expect(next!.statusCode, 200);
+    expect(elapsed.elapsed, lessThan(cleanupBudget));
     expect(
       jsonDecode(await utf8.decoder.bind(next).join())['calls'],
       hasLength(100),

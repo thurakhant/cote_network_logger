@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Logger Dashboard</title>
+    <link rel="stylesheet" href="/dashboard.css">
+
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Network Logger Dashboard</h1>
+            <p>Real-time HTTP monitoring for your Flutter app</p>
+        </div>
+        
+        <div class="dashboard">
+            <div class="controls">
+                <input type="text" aria-label="Search calls" id="searchInput" class="search-input" placeholder="Search by URL, method, or status..." />
+                
+                <select aria-label="Filter method" id="methodFilter" class="filter-select">
+                    <option value="">All Methods</option>
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                    <option value="PATCH">PATCH</option>
+                </select>
+                
+                <select aria-label="Filter status" id="statusFilter" class="filter-select">
+                    <option value="">All Status</option>
+                    <option value="2xx">2xx Success</option>
+                    <option value="4xx">4xx Client Error</option>
+                    <option value="5xx">5xx Server Error</option>
+                </select>
+                
+                <button class="refresh-btn" id="refreshButton">🔄 Refresh</button>
+                
+                <button class="refresh-btn" id="clearButton">Clear</button>
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="logCount">0</div>
+                        <div class="stat-label">Total</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="requestCount">0</div>
+                        <div class="stat-label">Requests</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="errorCount">0</div>
+                        <div class="stat-label">Errors</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="lastUpdated">--:--:--</div>
+                        <div class="stat-label">Last Updated</div>
+                    </div>
+                </div>
+                
+                <div class="connection-status">
+                    <span class="live-dot" id="wsDot"></span>
+                    <span class="live-label" id="wsText">Pairing required</span>
+                </div>
+            </div>
+            
+            <div id="notice" class="notice" role="status" aria-live="polite">Open a pairing link from your app to connect.</div>
+            <div class="logs-container">
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Type</th>
+                            <th>Method</th>
+                            <th>URL</th>
+                            <th>Status</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTableBody">
+                        <tr>
+                            <td colspan="6">
+                                No captured calls.<br>
+                                <small>Pair this browser to load calls</small>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <dialog id="copyDialog"><h2>Copy manually</h2><p>Clipboard unavailable. Select and copy this text.</p><textarea id="copyText" aria-label="Text to copy" readonly></textarea><button id="copyClose">Close</button></dialog>
+    <script src="/dashboard.js" defer></script>
+</body>
+</html>
