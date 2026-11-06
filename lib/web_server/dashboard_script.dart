@@ -773,11 +773,23 @@ class DashboardScript {
             
             const transaction = transactions.get(transactionId);
             
+            // Merged rows retain request fields even after their type changes.
+            if (log.requestTimestamp != null) {
+                transaction.request = {
+                    ...log,
+                    type: 'request',
+                    headers: log.requestHeaders || {},
+                    body: log.requestBody,
+                    timestamp: log.requestTimestamp
+                };
+                transaction.timestamp = log.requestTimestamp;
+            }
+
             // Update transaction with log data
             if (log.type === 'request') {
-                transaction.request = log;
+                transaction.request = transaction.request || {...log, body: log.requestBody ?? log.body};
                 // Use request timestamp as the primary timestamp
-                transaction.timestamp = log.timestamp;
+                transaction.timestamp = log.requestTimestamp || log.timestamp;
                 transaction.method = log.method || transaction.method;
                 transaction.url = log.url || log.uri || transaction.url;
             } else if (log.type === 'response') {
