@@ -82,6 +82,12 @@ class CallStore {
     return admission;
   }
 
+  bool accepts(Admission admission) =>
+      _active &&
+      admission._epoch == _epoch &&
+      identical(_admissions[admission._id], admission) &&
+      _records[admission._id]?.state == NetworkCallState.pending;
+
   bool finish(
     Admission admission, {
     NetworkResponse? response,

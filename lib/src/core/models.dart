@@ -193,16 +193,21 @@ class LoggerSnapshot {
 }
 
 class NetworkError {
-  NetworkError._(this.kind);
+  NetworkError._(this.kind, this._maxBytes);
   final NetworkErrorKind kind;
-  String get description => switch (kind) {
-        NetworkErrorKind.connection => 'Connection failed',
-        NetworkErrorKind.timeout => 'Request timed out',
-        NetworkErrorKind.badResponse => 'Response rejected',
-        NetworkErrorKind.cancelled => 'Request cancelled',
-        NetworkErrorKind.certificate => 'Certificate rejected',
-        NetworkErrorKind.unknown => 'Request failed',
-      };
+  final int _maxBytes;
+  String get description {
+    final safe = switch (kind) {
+      NetworkErrorKind.connection => 'Connection failed',
+      NetworkErrorKind.timeout => 'Request timed out',
+      NetworkErrorKind.badResponse => 'Response rejected',
+      NetworkErrorKind.cancelled => 'Request cancelled',
+      NetworkErrorKind.certificate => 'Certificate rejected',
+      NetworkErrorKind.unknown => 'Request failed',
+    };
+    return safe.substring(0, safe.length < _maxBytes ? safe.length : _maxBytes);
+  }
+
   Map<String, Object?> _toJson() =>
       {'kind': kind.name, 'description': description};
 }
@@ -239,7 +244,11 @@ class CoreRecords {
         endedAt: endedAt.toUtc(),
         captureWarnings: captureWarnings,
       );
-  static NetworkError error(NetworkErrorKind kind) => NetworkError._(kind);
+  static NetworkError error(NetworkErrorKind kind, {int maxBytes = 1024}) {
+    if (maxBytes <= 0) throw ArgumentError.value(maxBytes, 'maxBytes');
+    return NetworkError._(kind, maxBytes);
+  }
+
   static BodySummary summary({
     int? fieldCount,
     int? fileCount,
