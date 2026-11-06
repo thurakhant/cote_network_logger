@@ -7,8 +7,11 @@ class FakeAdapter implements HttpClientAdapter {
   FakeAdapter(this.respond);
   final ResponseBody Function(RequestOptions) respond;
   @override
-  Future<ResponseBody> fetch(RequestOptions options,
-      Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
     return respond(options);
   }
 
@@ -26,15 +29,21 @@ void main() {
       addTearDown(dio.close);
       dio.httpClientAdapter = FakeAdapter((options) {
         pending = Map.of(NetworkLogStore.instance.getLogs().single);
-        return ResponseBody.fromString('{"ok":true}', status, headers: {
-          'content-type': ['application/json'],
-          'x-response': ['yes']
-        });
+        return ResponseBody.fromString(
+          '{"ok":true}',
+          status,
+          headers: {
+            'content-type': ['application/json'],
+            'x-response': ['yes'],
+          },
+        );
       });
       try {
-        await dio.post('https://example.test/items',
-            data: {'name': 'test'},
-            options: Options(headers: {'x-request': 'yes'}));
+        await dio.post(
+          'https://example.test/items',
+          data: {'name': 'test'},
+          options: Options(headers: {'x-request': 'yes'}),
+        );
       } on DioException {
         if (status == 200) rethrow;
       }
@@ -43,18 +52,19 @@ void main() {
       expect(log['requestTimestamp'], pending!['timestamp']);
       expect(log['headers'], containsPair('x-response', ['yes']));
       expect(
-          log.keys,
-          containsAll([
-            'transactionId',
-            'method',
-            'url',
-            'headers',
-            'statusCode',
-            'requestBody',
-            'responseBody',
-            'status',
-            'timestamp'
-          ]));
+        log.keys,
+        containsAll([
+          'transactionId',
+          'method',
+          'url',
+          'headers',
+          'statusCode',
+          'requestBody',
+          'responseBody',
+          'status',
+          'timestamp',
+        ]),
+      );
     });
   }
 }

@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.1] - 2026-11-06
+
+### Fixed
+- Preserve request headers and time after responses and errors, with additive `requestHeaders` and `requestTimestamp` fields. Existing log keys and legacy APIs remain.
+- Reconstruct request details and cURL from completed dashboard rows.
+- Broadcast live updates whenever the logger is enabled, including explicitly enabled release builds. Safely iterate connected clients.
+- Snapshot JSON bodies and summarize FormData, byte buffers, and unsupported bodies before storage so they cannot break `/logs`.
+- Discover and print a usable LAN dashboard URL, with localhost fallback.
+- Fall back to selection-based copying when clipboard access is missing or denied on plain HTTP. Escape cURL shell arguments and retain falsy request bodies.
+
+### Documentation
+- Explain unauthenticated network access and exposure of logged tokens. Token access is planned for 2.0.
+- Correct Android laptop access with `adb forward tcp:3000 tcp:3000`.
+- Document that `enableInRelease` has no effect; use the build-time enable flag.
+
 ## [1.2.0] - 2025-06-08
 
 ### Added

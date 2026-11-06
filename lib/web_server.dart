@@ -144,7 +144,8 @@ class NetworkLogWebServer {
       debugPrint('🌐 Network Logger Dashboard: $dashboardUrl');
       if (_dashboardHost == 'localhost') {
         debugPrint(
-            'No LAN address found. Use localhost or adb forward tcp:3000 tcp:3000.');
+          'No LAN address found. Use localhost or adb forward tcp:3000 tcp:3000.',
+        );
       }
       return true;
     } catch (e) {
@@ -268,9 +269,12 @@ class NetworkLogWebServer {
               .hasMatch(interface.name);
       interfaces.sort((a, b) => (isWifi(b) ? 1 : 0) - (isWifi(a) ? 1 : 0));
       for (final interface in interfaces) {
-        if (!RegExp(r'^(wlan|wifi|wi-fi|en\d|eth|ethernet)',
-                caseSensitive: false)
-            .hasMatch(interface.name)) continue;
+        if (!RegExp(
+          r'^(wlan|wifi|wi-fi|en\d|eth|ethernet)',
+          caseSensitive: false,
+        ).hasMatch(interface.name)) {
+          continue;
+        }
         for (final address in interface.addresses) {
           final bytes = address.rawAddress;
           if (bytes[0] == 10 ||

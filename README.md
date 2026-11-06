@@ -1,392 +1,114 @@
-# 🚀 Cote Network Logger
+# Cote Network Logger
 
-**Beautiful real-time HTTP network monitoring for Flutter developers**
+Real-time Dio HTTP monitoring for Flutter, with a browser dashboard.
 
-A powerful, developer-friendly Flutter package that provides a stunning web dashboard for monitoring HTTP requests in real-time. Perfect for debugging, testing, and development workflows.
+## What's new in 1.2.1
 
----
+- Request headers and time survive completed and failed calls.
+- Live updates work in explicitly enabled release builds.
+- FormData, byte buffers, and other unsupported bodies cannot break the log list.
+- The startup message prints one local dashboard URL.
+- Body and cURL copy work on plain HTTP through a clipboard fallback.
 
-## 📦 What's New in 1.2.0 (2025-06-08)
-- **🎨 Beautiful Modern UI:** Complete dashboard redesign with glass-morphism effects and gradient backgrounds
-- **✨ Enhanced Visual Design:** Smooth animations, hover effects, and professional Material Design components
-- **📄 Response Body Display:** Fixed response body visibility - now shows properly in dashboard with syntax highlighting
-- **🔧 Field Name Consistency:** Fixed interceptor to correctly save `requestBody` and `responseBody` fields
-- **📋 Copy-to-Clipboard:** One-click copy functionality for all request/response data
-- **🚀 Smart Content Expansion:** Small responses expand by default, large ones collapse for better performance
-- **🔧 Production Optimizations:** Reduced logging in production builds for cleaner console output
+## Network access warning
 
----
+**Anyone on the same reachable Wi-Fi or local network can read all logged calls, including headers, bodies, and tokens.** The server listens on all interfaces on port 3000. It has no authentication or encryption. The cURL helper masks Authorization and Cookie headers, but the dashboard and API still expose the original values.
 
-## ✨ Features
+Use it only on a trusted test network with test data. Stop the server when finished. Token-based access is planned for 2.0; it is not available in 1.2.1.
 
-- 🎨 **Beautiful Modern UI** - Glass-morphism design with gradient backgrounds and smooth animations
-- 🔍 **Real-time Monitoring** - Watch HTTP requests as they happen with live WebSocket updates
-- 📄 **Complete Request/Response View** - See headers, bodies, status codes, and timing information
-- 📋 **Copy-to-Clipboard** - One-click copy for all request/response data
-- 🔍 **Advanced Filtering** - Search by URL, method, status code, or content
-- 📱 **Cross-platform** - Works on Android, iOS, macOS, Windows, Linux
-- 🌐 **Zero Setup** - Just add the interceptor and start monitoring
-- 💾 **Memory Efficient** - Smart cleanup with configurable limits
-- 🔒 **Secure by Default** - Only runs in debug/staging, disabled in production
-- 🚀 **Developer Friendly** - Clean API, comprehensive documentation, and great DX
+## Quick start
 
-## 🚀 Quick Start
-
-Get up and running in under 2 minutes:
-
-### 1️⃣ Install
 ```yaml
 dependencies:
-  cote_network_logger: ^1.2.0
+  cote_network_logger: ^1.2.1
 ```
 
-### 2️⃣ Initialize
+Start the server and add the interceptor to the Dio instance making your calls:
+
 ```dart
+import 'package:flutter/widgets.dart';
+import 'package:dio/dio.dart';
 import 'package:cote_network_logger/cote_network_logger.dart';
+
+final dio = Dio()..interceptors.add(const CoteNetworkLogger());
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Start the network logger (only works in debug/staging)
   await startNetworkLogServer();
-  
   runApp(MyApp());
 }
 ```
 
-### 3️⃣ Add Interceptor
-```dart
-import 'package:dio/dio.dart';
-import 'package:cote_network_logger/cote_network_logger.dart';
+Make a request through `dio`. Open the URL printed as `Network Logger Dashboard` in your laptop browser. The dashboard shows live requests, response status, headers, and bodies. Expand a row to copy its body or cURL command.
 
-final dio = Dio();
-dio.interceptors.add(const CoteNetworkLogger());
-```
+JSON bodies remain JSON. FormData is summarized by field/file count, byte buffers by byte count, and unsupported objects by type. These summaries are not replayable upload contents. Copied cURL commands redact Authorization and Cookie; replace those placeholders yourself when needed. Large displayed bodies may be truncated, and copied truncated content includes a notice.
 
-### 4️⃣ Open Dashboard
-- **iOS Simulator**: `http://localhost:3000` in your Mac browser
-- **Android Emulator**: `http://localhost:3000` in emulator browser  
-- **Physical Device**: `http://YOUR_DEVICE_IP:3000` in any browser
+## Open the dashboard
 
-That's it! 🎉 Make HTTP requests and watch them appear in real-time.
+### Android emulator or USB-connected Android phone
 
----
+Run your app, then forward the dashboard port from your laptop:
 
-## 📝 Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for full release notes.
-
----
-
-## 🌍 Environment Support
-
-The network logger is available in the following environments:
-
-- ✅ **Debug Mode**: Always enabled during development
-- ✅ **Staging Environment**: Enabled when `STAGING_ENV=true`
-- ✅ **Release Mode**: Can be enabled with `NETWORK_LOGGER_ENABLED=true`
-- ❌ **Production Environment**: Disabled by default for security
-
-### Running in Different Environments
-
-#### Debug Mode (Default)
 ```bash
-flutter run
+adb forward tcp:3000 tcp:3000
 ```
 
-#### Staging Environment
-```bash
-flutter run --dart-define=STAGING_ENV=true
-```
+Open **http://localhost:3000** in the laptop browser. With multiple devices, use `adb -s DEVICE_SERIAL forward tcp:3000 tcp:3000`.
 
-#### Release Mode with Logger
+### Physical Android or iOS device over Wi-Fi
+
+1. Connect the phone and laptop to the same trusted Wi-Fi network.
+2. Start the app and open its printed URL, such as `http://192.168.1.20:3000`, on the laptop.
+3. If no suitable LAN address is found, the server prints `http://localhost:3000` with a fallback message. On Android, use USB forwarding above.
+
+The address is discovered at server startup. Restart the server after changing networks. Hotspots, VPNs, firewalls, and Wi-Fi client isolation can prevent access. A printed address does not guarantee that the network allows connections.
+
+### iOS simulator and desktop
+
+Open **http://localhost:3000** on the same computer. A discovered LAN URL also lets another computer on the trusted network connect.
+
+The server supports Android, iOS, macOS, Windows, and Linux. Flutter Web cannot host this socket server.
+
+## Enable logging
+
+| Build configuration | Logger |
+| --- | --- |
+| Debug | Enabled |
+| `--dart-define=STAGING_ENV=true` | Enabled |
+| `--dart-define=NETWORK_LOGGER_ENABLED=true` | Enabled, including release |
+| Release without either flag | Disabled |
+
+For a release test build:
+
 ```bash
 flutter run --release --dart-define=NETWORK_LOGGER_ENABLED=true
 ```
 
-### Building for Different Flavors
+`NetworkLogger.configure(enableInRelease: true)` **has no effect**. Use `--dart-define=NETWORK_LOGGER_ENABLED=true` when running or building instead. Registering a custom environment, setting `enableByDefault`, or passing `CUSTOM_ENV` also does not enable logging by itself. Debug mode remains enabled even when `NETWORK_LOGGER_ENABLED=false`.
 
-For Android:
-```bash
-# Debug flavor
-flutter build apk --flavor debug
+Do not distribute a production build with either enabling flag.
 
-# Staging flavor
-flutter build apk --flavor staging --dart-define=STAGING_ENV=true
-
-# Production flavor
-flutter build apk --flavor production
-```
-
-For iOS:
-```bash
-# Debug configuration
-flutter build ios --flavor Debug
-
-# Staging configuration
-flutter build ios --flavor Staging --dart-define=STAGING_ENV=true
-
-# Release configuration
-flutter build ios --flavor Release
-```
-
-## 📱 Platform Support
-
-### iOS Simulator (Best for Mac)
-1. Run your Flutter app on iOS simulator
-2. Open browser on your Mac
-3. Navigate to: **http://localhost:3000**
-
-### Android Emulator
-1. Run your Flutter app on Android emulator
-2. Open browser on the emulator itself
-3. Navigate to: **http://localhost:3000**
-
-### Physical Devices
-1. Find your device's IP address
-2. Open browser on any device on the same network
-3. Navigate to: **http://YOUR_DEVICE_IP:3000**
-
-## 🔧 Troubleshooting
-
-### Dashboard Not Loading
-- Check if server is running (look for console message)
-- Verify platform support
-- Check environment settings
-- Ensure port 3000 is not blocked
-
-### iOS Local Network Setup
-1. Go to iOS Settings → Privacy & Security → Local Network
-2. Find your app and toggle it ON
-3. Run your app and try accessing the dashboard
-
-## 📚 API Reference
-
-### Main Functions
+## API
 
 ```dart
-// Start the network logger server
-Future<bool> startNetworkLogServer()
-
-// Stop the network logger server
-Future<void> stopNetworkLogServer()
-
-// Check if server is running
-bool isNetworkLogServerRunning()
-
-// Get dashboard URL
-String? getNetworkLogDashboardUrl()
-
-// Check platform support
-bool isNetworkLoggerSupported()
+await startNetworkLogServer();
+final url = getNetworkLogDashboardUrl(); // null until running
+final running = isNetworkLogServerRunning();
+final supported = isNetworkLoggerSupported();
+await stopNetworkLogServer();
 ```
 
-### Configuration
+The `NetworkLogger.start()`, `NetworkLogger.dashboardUrl`, and `NetworkLogger.isRunning` helpers are also available. Stopping the server closes dashboard connections; the interceptor still records calls while the logger configuration is enabled. Call `NetworkLogStore.instance.clearLogs()` to clear stored entries.
 
-```dart
-class NetworkLoggerConfig {
-  // Check if logger is enabled
-  static bool get isEnabled
+The store keeps the most recent 200 transactions in memory. In 1.2.1, completed log maps retain all previous keys and add `requestHeaders` and `requestTimestamp`. The legacy `headers` and `timestamp` fields continue to represent the most recent update. Existing `addRequest` and `addResponse` APIs are unchanged.
 
-  // Get current flavor/environment
-  static String get currentFlavor
+## Troubleshooting
 
-  // Check if logger is enabled in specific flavor
-  static bool isEnabledInFlavor(String flavor)
-}
-```
+- Check that the server started and port 3000 is free.
+- Check that the Dio instance making requests has `CoteNetworkLogger` attached.
+- For release builds, use one of the enabling build flags above.
+- If Wi-Fi blocks access, use Android USB forwarding.
+- On iOS, allow local network access for the app if prompted or available in Settings.
+- Plain HTTP uses a selection-based copy fallback. If the browser denies copying, the button shows `Failed`; try another browser or select the text manually.
 
-### Configuration Examples
-
-#### Basic Setup
-```dart
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Start the logger (automatically handles environment)
-  await NetworkLogger.start();
-  
-  runApp(MyApp());
-}
-```
-
-#### Environment Configuration
-```dart
-void setupNetworkLogger() {
-  // Configure with predefined environments
-  NetworkLogger.configure(
-    environments: [
-      NetworkLoggerEnvironment.debug,
-      NetworkLoggerEnvironment.staging,
-      NetworkLoggerEnvironment.qa,
-    ],
-  );
-}
-
-// Or use custom environments
-NetworkLogger.configure(
-  environments: [
-    NetworkLoggerEnvironment.custom(
-      name: 'uat',
-      enableByDefault: true,
-      description: 'User Acceptance Testing',
-    ),
-    NetworkLoggerEnvironment.custom(
-      name: 'preprod',
-      enableByDefault: true,
-      description: 'Pre-Production Environment',
-    ),
-  ],
-);
-```
-
-#### Enable in Release Mode
-```dart
-// Enable logger in release mode for specific environments
-NetworkLogger.configure(
-  environments: [NetworkLoggerEnvironment.staging],
-  enableInRelease: true,
-);
-```
-
-#### Check Logger Status
-```dart
-// Check if logger is running
-if (NetworkLogger.isRunning) {
-  // Get dashboard URL
-  final url = NetworkLogger.dashboardUrl;
-  print('Dashboard available at: $url');
-}
-```
-
-#### Environment-Specific Behavior
-```dart
-// The logger automatically handles different environments:
-// - Debug: Always enabled
-// - Staging: Enabled by default
-// - QA: Enabled by default
-// - Beta: Enabled by default
-// - Production: Always disabled
-// - Custom: Configurable via enableByDefault
-```
-
-## 🎯 Use Cases
-
-### Quick Start
-```dart
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await NetworkLogger.start();
-  runApp(MyApp());
-}
-```
-
-### QA Testing Setup
-```dart
-void setupForQATesting() {
-  NetworkLogger.configure(
-    environments: [NetworkLoggerEnvironment.qa],
-    enableInRelease: true,
-  );
-}
-```
-
-### Multiple Environment Support
-```dart
-void setupAllEnvironments() {
-  NetworkLogger.configure(
-    environments: [
-      NetworkLoggerEnvironment.debug,
-      NetworkLoggerEnvironment.staging,
-      NetworkLoggerEnvironment.qa,
-      NetworkLoggerEnvironment.beta,
-    ],
-  );
-}
-```
-
-### Custom Environment
-```dart
-void setupCustomEnvironment() {
-  NetworkLogger.configure(
-    environments: [
-      NetworkLoggerEnvironment.custom(
-        name: 'demo',
-        enableByDefault: true,
-        description: 'Demo Environment',
-      ),
-    ],
-  );
-}
-```
-
-### Custom Environment Support
-The network logger supports custom environment types for flexible configuration:
-
-1. **Add Custom Environments**
-   ```dart
-   // Add your custom environments
-   NetworkLoggerConfig.addCustomEnvironment('qa');
-   NetworkLoggerConfig.addCustomEnvironment('beta');
-   NetworkLoggerConfig.addCustomEnvironment('uat');
-   ```
-
-2. **Run with Custom Environment**
-   ```bash
-   # Run with QA environment
-   flutter run --dart-define=CUSTOM_ENV=qa --dart-define=NETWORK_LOGGER_ENABLED=true
-   
-   # Run with Beta environment
-   flutter run --dart-define=CUSTOM_ENV=beta --dart-define=NETWORK_LOGGER_ENABLED=true
-   ```
-
-3. **Environment-Specific Behavior**
-   - Debug: Always enabled
-   - Staging: Enabled by default
-   - Custom: Enabled when NETWORK_LOGGER_ENABLED=true
-   - Production: Always disabled
-
-### QA Testing in Release Mode
-The network logger is particularly useful for QA teams testing release builds in staging environment:
-
-1. **Release Mode Testing**
-   ```bash
-   # Build release version with staging environment
-   flutter build apk --release --dart-define=STAGING_ENV=true
-   ```
-
-2. **Enable Logger in Release**
-   ```bash
-   # Enable logger in release mode for staging environment
-   flutter run --release --dart-define=STAGING_ENV=true --dart-define=NETWORK_LOGGER_ENABLED=true
-   ```
-
-3. **Benefits for QA Teams**
-   - Monitor network requests in release builds
-   - Debug issues in staging environment
-   - Test with production-like performance
-   - Maintain security in production
-
-### Development Workflow
-1. **Local Development**
-   - Debug mode with full logging
-   - Real-time request monitoring
-   - Immediate feedback
-
-2. **Staging Testing**
-   - Release mode with controlled logging
-   - QA team access to network logs
-   - Production-like environment
-
-3. **Production Deployment**
-   - Logger automatically disabled
-   - No performance impact
-   - Secure by default
-
-## 🎯 Example
-
-Check out the [example](example) directory for a complete working example.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+See the [example](example) and [CHANGELOG.md](CHANGELOG.md). Licensed under [MIT](LICENSE).
