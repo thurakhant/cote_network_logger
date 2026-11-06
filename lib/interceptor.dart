@@ -37,7 +37,9 @@ class CoteNetworkLogger extends Interceptor {
       });
       handler.next(options);
     } catch (e) {
-      if (kDebugMode) debugPrint('❌ CoteNetworkLogger: Failed to log request: $e');
+      if (kDebugMode) {
+        debugPrint('❌ CoteNetworkLogger: Failed to log request: $e');
+      }
       handler.next(options);
     }
   }
@@ -49,7 +51,9 @@ class CoteNetworkLogger extends Interceptor {
       return;
     }
     try {
-      final transactionId = _requestTransactionIds.remove(response.requestOptions) ?? _generateTransactionId(response.requestOptions);
+      final transactionId =
+          _requestTransactionIds.remove(response.requestOptions) ??
+              _generateTransactionId(response.requestOptions);
       NetworkLogStore.instance.upsertLog(transactionId, {
         'transactionId': transactionId,
         'type': 'response',
@@ -63,7 +67,9 @@ class CoteNetworkLogger extends Interceptor {
       });
       handler.next(response);
     } catch (e) {
-      if (kDebugMode) debugPrint('❌ CoteNetworkLogger: Failed to log response: $e');
+      if (kDebugMode) {
+        debugPrint('❌ CoteNetworkLogger: Failed to log response: $e');
+      }
       handler.next(response);
     }
   }
@@ -75,7 +81,8 @@ class CoteNetworkLogger extends Interceptor {
       return;
     }
     try {
-      final transactionId = _requestTransactionIds.remove(err.requestOptions) ?? _generateTransactionId(err.requestOptions);
+      final transactionId = _requestTransactionIds.remove(err.requestOptions) ??
+          _generateTransactionId(err.requestOptions);
       NetworkLogStore.instance.upsertLog(transactionId, {
         'transactionId': transactionId,
         'type': 'error',
@@ -90,7 +97,9 @@ class CoteNetworkLogger extends Interceptor {
       });
       handler.next(err);
     } catch (e) {
-      if (kDebugMode) debugPrint('❌ CoteNetworkLogger: Failed to log error: $e');
+      if (kDebugMode) {
+        debugPrint('❌ CoteNetworkLogger: Failed to log error: $e');
+      }
       handler.next(err);
     }
   }

@@ -5,16 +5,18 @@ import 'package:cote_network_logger/cote_network_logger.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await startNetworkLogServer();
-  runApp(const MaterialApp(
-    home: Scaffold(
-      body: Center(
-        child: ElevatedButton(
-          onPressed: _sendRequest,
-          child: Text('Send GET'),
+  runApp(
+    const MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: ElevatedButton(
+            onPressed: _sendRequest,
+            child: Text('Send GET'),
+          ),
         ),
       ),
     ),
-  ));
+  );
 }
 
 Future<void> _sendRequest() async {

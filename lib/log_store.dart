@@ -123,7 +123,9 @@ class NetworkLogStore {
       _logOrder.addLast(request.id);
       _cleanup();
     } catch (e) {
-      if (kDebugMode) debugPrint('❌ NetworkLogStore: Failed to add request: $e');
+      if (kDebugMode) {
+        debugPrint('❌ NetworkLogStore: Failed to add request: $e');
+      }
     }
   }
 
@@ -134,7 +136,9 @@ class NetworkLogStore {
       _logOrder.addLast(response.requestId);
       _cleanup();
     } catch (e) {
-      if (kDebugMode) debugPrint('❌ NetworkLogStore: Failed to add response: $e');
+      if (kDebugMode) {
+        debugPrint('❌ NetworkLogStore: Failed to add response: $e');
+      }
     }
   }
 
@@ -154,7 +158,9 @@ class NetworkLogStore {
     try {
       if (_logs.length > NetworkLoggerConfig.maxLogEntries) {
         final oldestIds = _logOrder.toList()..sort((a, b) => a.compareTo(b));
-        final idsToRemove = oldestIds.take(_logs.length - NetworkLoggerConfig.maxLogEntries).toList();
+        final idsToRemove = oldestIds
+            .take(_logs.length - NetworkLoggerConfig.maxLogEntries)
+            .toList();
         for (final id in idsToRemove) {
           _logs.remove(id);
         }
