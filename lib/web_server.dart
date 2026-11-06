@@ -45,7 +45,11 @@ class NetworkLogWebServer {
     // Check if we're on a supported platform
     try {
       // This will throw on unsupported platforms
-      return Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+      return Platform.isAndroid ||
+          Platform.isIOS ||
+          Platform.isMacOS ||
+          Platform.isWindows ||
+          Platform.isLinux;
     } catch (e) {
       return false;
     }
@@ -81,15 +85,21 @@ class NetworkLogWebServer {
 
     try {
       if (kDebugMode) {
-        debugPrint('🚀 NetworkLogWebServer: Starting server on ${NetworkLoggerConfig.serverHost}:${NetworkLoggerConfig.serverPort}...');
+        debugPrint(
+          '🚀 NetworkLogWebServer: Starting server on ${NetworkLoggerConfig.serverHost}:${NetworkLoggerConfig.serverPort}...',
+        );
       }
       final handler = _createHandler();
-      _server = await HttpServer.bind(NetworkLoggerConfig.serverHost, NetworkLoggerConfig.serverPort);
+      _server = await HttpServer.bind(
+        NetworkLoggerConfig.serverHost,
+        NetworkLoggerConfig.serverPort,
+      );
       _isRunning = true;
 
       _server!.listen((HttpRequest request) async {
         try {
-          if (request.uri.path == '/ws' && WebSocketTransformer.isUpgradeRequest(request)) {
+          if (request.uri.path == '/ws' &&
+              WebSocketTransformer.isUpgradeRequest(request)) {
             final socket = await WebSocketTransformer.upgrade(request);
             _handleWebSocketConnection(socket);
             return;
@@ -116,7 +126,9 @@ class NetworkLogWebServer {
           await shelfResponse.read().forEach(request.response.add);
           await request.response.close();
         } catch (e) {
-          if (kDebugMode) debugPrint('❌ NetworkLogWebServer: Error handling request: $e');
+          if (kDebugMode) {
+            debugPrint('❌ NetworkLogWebServer: Error handling request: $e');
+          }
           request.response.statusCode = 500;
           request.response.write('Internal Server Error');
           await request.response.close();
@@ -130,7 +142,9 @@ class NetworkLogWebServer {
       }
       return true;
     } catch (e) {
-      if (kDebugMode) debugPrint('❌ NetworkLogWebServer: Failed to start server: $e');
+      if (kDebugMode) {
+        debugPrint('❌ NetworkLogWebServer: Failed to start server: $e');
+      }
       _isRunning = false;
       return false;
     }
@@ -306,7 +320,7 @@ class NetworkLogWebServer {
 
     if (dashboardDir != null) {
       // Serve the Flutter Web dashboard build with proper MIME types
-      return Pipeline().addMiddleware(_mimeTypeMiddleware()).addHandler(
+      return const Pipeline().addMiddleware(_mimeTypeMiddleware()).addHandler(
             createStaticHandler(
               dashboardDir.path,
               defaultDocument: 'index.html',
@@ -320,7 +334,9 @@ class NetworkLogWebServer {
           // Get the HTML template and inject the JavaScript
           final html = DashboardTemplate.getHtml();
           final script = DashboardScript.getScript();
-          final finalHtml = html.replaceAll('{{DASHBOARD_SCRIPT}}', script).replaceAll('{{TIMESTAMP}}', '');
+          final finalHtml = html
+              .replaceAll('{{DASHBOARD_SCRIPT}}', script)
+              .replaceAll('{{TIMESTAMP}}', '');
 
           return Response.ok(
             finalHtml,

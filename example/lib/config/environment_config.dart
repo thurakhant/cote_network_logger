@@ -79,10 +79,16 @@ class EnvironmentConfig {
   String get description => currentSettings.description;
 
   /// Get all enabled features
-  List<String> get enabledFeatures => currentSettings.features.entries.where((entry) => entry.value).map((entry) => entry.key).toList();
+  List<String> get enabledFeatures => currentSettings.features.entries
+      .where((entry) => entry.value)
+      .map((entry) => entry.key)
+      .toList();
 
   /// Get all disabled features
-  List<String> get disabledFeatures => currentSettings.features.entries.where((entry) => !entry.value).map((entry) => entry.key).toList();
+  List<String> get disabledFeatures => currentSettings.features.entries
+      .where((entry) => !entry.value)
+      .map((entry) => entry.key)
+      .toList();
 
   /// Check if current environment is debug
   bool get isDebug => currentEnvironment == debug;
