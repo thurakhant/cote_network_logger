@@ -168,9 +168,11 @@ class CaptureEngine {
         warnings.add('byteLimit');
       } else {
         uri = Uri.parse(url).normalizePath();
+        if (uri.userInfo.isNotEmpty) warnings.add('userInfoRedacted');
         var path = uri.path;
         try {
           path = policy.pathSanitizer?.call(path) ?? path;
+          if (path != uri.path) warnings.add('pathRedacted');
         } catch (_) {
           path = '';
           warnings.add('pathPolicyFailed');

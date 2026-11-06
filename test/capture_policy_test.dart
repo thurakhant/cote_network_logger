@@ -11,6 +11,31 @@ class Poison {
 }
 
 void main() {
+  test('URL credential and path redaction disclose incomplete replay', () {
+    final credentials = CaptureEngine().request(
+      method: 'GET',
+      url: 'https://name:private-value@api.test/items',
+    );
+    expect(credentials.url, 'https://api.test/items');
+    expect(credentials.body.kind, BodyKind.absent);
+    expect(credentials.captureWarnings, contains('userInfoRedacted'));
+
+    final engine = CaptureEngine(
+      policy: CapturePolicy(pathSanitizer: (_) => '/safe'),
+    );
+    final changed = engine.request(
+      method: 'GET',
+      url: 'https://api.test/private-value',
+    );
+    expect(changed.url, 'https://api.test/safe');
+    expect(changed.captureWarnings, contains('pathRedacted'));
+    expect(
+      engine
+          .request(method: 'GET', url: 'https://api.test/safe')
+          .captureWarnings,
+      isNot(contains('pathRedacted')),
+    );
+  });
   test('explicit null, primitives, direction, conflicts, traversal budgets',
       () {
     CaptureEngine engine({
