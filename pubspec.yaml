@@ -1,30 +1,23 @@
 name: cote_network_logger
 description: Beautiful Flutter developer tool for real-time HTTP network monitoring with web dashboard
-version: 1.2.1
+version: 2.0.0
 homepage: https://github.com/thurakhant/cote_network_logger
 repository: https://github.com/thurakhant/cote_network_logger.git
 issue_tracker: https://github.com/thurakhant/cote_network_logger/issues
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
-  flutter: ">=3.0.0"
+  sdk: '>=3.5.4 <4.0.0'
+  flutter: ">=3.24.5"
 
 dependencies:
   flutter:
     sdk: flutter
   dio: ^5.4.0
-  shelf: ^1.4.1
-  shelf_static: ^1.1.2
-  http: ^1.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
-
-flutter:
-  assets:
-    - screenshots/
 
 topics:
   - networking

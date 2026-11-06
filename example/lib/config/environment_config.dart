@@ -23,7 +23,8 @@ class EnvironmentConfig {
       icon: Icons.bug_report,
       description: 'Development environment with full debugging features',
       features: {
-        'Network Logger': true,
+        'Network Logger':
+            kDebugMode || bool.fromEnvironment('NETWORK_LOGGER_ENABLED'),
         'Debug Tools': true,
         'Analytics': false,
       },
@@ -34,7 +35,8 @@ class EnvironmentConfig {
       icon: Icons.storage,
       description: 'Testing environment with limited debugging features',
       features: {
-        'Network Logger': true,
+        'Network Logger':
+            kDebugMode || bool.fromEnvironment('NETWORK_LOGGER_ENABLED'),
         'Debug Tools': false,
         'Analytics': true,
       },
@@ -64,6 +66,7 @@ class EnvironmentConfig {
   /// Get current environment settings
   EnvironmentSettings get currentSettings => _settings[currentEnvironment]!;
 
+  /// App-only display settings; these do not configure the logger session.
   /// Check if feature is enabled in current environment
   bool isFeatureEnabled(String feature) {
     return currentSettings.features[feature] ?? false;

@@ -1,114 +1,188 @@
 # Cote Network Logger
 
-Real-time Dio HTTP monitoring for Flutter, with a browser dashboard.
+Dio request inspection for Flutter with an authenticated browser dashboard.
+This branch is the **2.0.0 local release candidate**, not a published release.
 
-## What's new in 1.2.1
+## Start an explicit session
 
-- Request headers and time survive completed and failed calls.
-- Live updates work in explicitly enabled release builds.
-- FormData, byte buffers, and other unsupported bodies cannot break the log list.
-- The startup message prints one local dashboard URL.
-- Body and cURL copy work on plain HTTP through a clipboard fallback.
-
-## Network access warning
-
-**Anyone on the same reachable Wi-Fi or local network can read all logged calls, including headers, bodies, and tokens.** The server listens on all interfaces on port 3000. It has no authentication or encryption. The cURL helper masks Authorization and Cookie headers, but the dashboard and API still expose the original values.
-
-Use it only on a trusted test network with test data. Stop the server when finished. Token-based access is planned for 2.0; it is not available in 1.2.1.
-
-## Quick start
+Use the local package while evaluating this candidate:
 
 ```yaml
 dependencies:
-  cote_network_logger: ^1.2.1
+  cote_network_logger:
+    path: ../cote_network_logger
+  dio: ^5.4.0
 ```
-
-Start the server and add the interceptor to the Dio instance making your calls:
 
 ```dart
-import 'package:flutter/widgets.dart';
-import 'package:dio/dio.dart';
 import 'package:cote_network_logger/cote_network_logger.dart';
+import 'package:dio/dio.dart';
 
-final dio = Dio()..interceptors.add(const CoteNetworkLogger());
+final session = NetworkLoggerSession(
+  config: LoggerConfig(enabled: true),
+);
+final dio = Dio()..interceptors.add(CoteNetworkLogger(session: session));
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await startNetworkLogServer();
-  runApp(MyApp());
-}
+Future<LoggerStartResult> startInspection() => session.start();
+
+Future<void> stopInspection() => session.stop();
+Future<void> disposeInspection() => session.dispose();
 ```
 
-Make a request through `dio`. Open the URL printed as `Network Logger Dashboard` in your laptop browser. The dashboard shows live requests, response status, headers, and bodies. Expand a row to copy its body or cURL command.
+Check `result.status == LoggerStartStatus.running` before offering dashboard
+access. Capture begins only after successful startup. `stop()` stops capture and
+closes connections, retaining sanitized calls for local inspection. `dispose()`
+is terminal and clears calls. A successful restart clears data and rotates the
+session identity and pairing token. `clear()` clears calls without cancelling
+application requests.
 
-JSON bodies remain JSON. FormData is summarized by field/file count, byte buffers by byte count, and unsupported objects by type. These summaries are not replayable upload contents. Copied cURL commands redact Authorization and Cookie; replace those placeholders yourself when needed. Large displayed bodies may be truncated, and copied truncated content includes a notice.
+Bodies are metadata-only by default. Only `content-type` and `accept` headers
+are allowed by default; query values are redacted unless allowed. Mandatory
+credential keys cannot be allowed back. URLs may still contain sensitive path
+segments: use `CapturePolicy.pathSanitizer` when your routes contain private data.
 
-## Open the dashboard
+## Pair a browser
 
-### Android emulator or USB-connected Android phone
+`session.dashboardUri` is a plain address without credentials. The shell alone
+cannot read captured calls. Retrieve `session.pairingUri()` only after an explicit
+user action, then open that private link in your browser. Do not print it, send
+it to analytics, or put it in screenshots. The browser removes the fragment and
+keeps the token in memory; reload may require pairing again.
 
-Run your app, then forward the dashboard port from your laptop:
+Loopback (`127.0.0.1:3000`) is the default. On Android, forward the port from
+your laptop and open the pairing link there:
 
 ```bash
 adb forward tcp:3000 tcp:3000
 ```
 
-Open **http://localhost:3000** in the laptop browser. With multiple devices, use `adb -s DEVICE_SERIAL forward tcp:3000 tcp:3000`.
+Use `adb -s DEVICE_SERIAL forward tcp:3000 tcp:3000` with multiple devices.
+For a simulator or desktop on the same computer, use the loopback pairing link.
 
-### Physical Android or iOS device over Wi-Fi
+LAN access must be selected explicitly:
 
-1. Connect the phone and laptop to the same trusted Wi-Fi network.
-2. Start the app and open its printed URL, such as `http://192.168.1.20:3000`, on the laptop.
-3. If no suitable LAN address is found, the server prints `http://localhost:3000` with a fallback message. On Android, use USB forwarding above.
+```dart
+final lanSession = NetworkLoggerSession(
+  config: LoggerConfig(access: DashboardAccess.lan),
+);
+final result = await lanSession.start();
+// Offer result.lanCandidates in your own UI after successful startup.
+// For a selected candidate:
+// lanSession.pairingUri(dashboardUri: selectedCandidate);
+```
 
-The address is discovered at server startup. Restart the server after changing networks. Hotspots, VPNs, firewalls, and Wi-Fi client isolation can prevent access. A printed address does not guarantee that the network allows connections.
+LAN uses unencrypted HTTP. Use a trusted test network and test data. The server
+admits local IPv4 addresses only; IPv6 is deferred. If no LAN address is found,
+startup reports `noLanCandidate` and offers loopback/USB access. Network isolation,
+firewalls and VPNs may still prevent connections. Restart after changing networks.
+Flutter Web compiles with an unsupported-server result; it does not capture or
+fall back to console logging.
 
-### iOS simulator and desktop
+## Enable profile or release inspection
 
-Open **http://localhost:3000** on the same computer. A discovered LAN URL also lets another computer on the trusted network connect.
-
-The server supports Android, iOS, macOS, Windows, and Linux. Flutter Web cannot host this socket server.
-
-## Enable logging
-
-| Build configuration | Logger |
+| Build | Required permission |
 | --- | --- |
-| Debug | Enabled |
-| `--dart-define=STAGING_ENV=true` | Enabled |
-| `--dart-define=NETWORK_LOGGER_ENABLED=true` | Enabled, including release |
-| Release without either flag | Disabled |
-
-For a release test build:
+| Debug | `LoggerConfig(enabled: true)` |
+| Profile or release | Runtime `enabled: true` **and** compile-time `NETWORK_LOGGER_ENABLED=true` |
+| Any build with runtime `enabled: false` | Disabled |
 
 ```bash
 flutter run --release --dart-define=NETWORK_LOGGER_ENABLED=true
 ```
 
-`NetworkLogger.configure(enableInRelease: true)` **has no effect**. Use `--dart-define=NETWORK_LOGGER_ENABLED=true` when running or building instead. Registering a custom environment, setting `enableByDefault`, or passing `CUSTOM_ENV` also does not enable logging by itself. Debug mode remains enabled even when `NETWORK_LOGGER_ENABLED=false`.
+`STAGING_ENV`, custom environment names and the removed `enableInRelease` option
+do not grant permission. Keep inspection opt-in in your application configuration.
 
-Do not distribute a production build with either enabling flag.
+## Optional body capture
 
-## API
+Allow only the fields needed for a particular endpoint:
 
 ```dart
-await startNetworkLogServer();
-final url = getNetworkLogDashboardUrl(); // null until running
-final running = isNetworkLogServerRunning();
-final supported = isNetworkLoggerSupported();
-await stopNetworkLogServer();
+final capture = CapturePolicy(bodyRules: [
+  BodyCaptureRule(
+    host: 'api.example.test',
+    path: '/items',
+    methods: {'POST'},
+    direction: BodyDirection.response,
+    allowedJsonPaths: {r'$.items[*].name', r'$.ok'},
+  ),
+]);
+final session = NetworkLoggerSession(config: LoggerConfig(capture: capture));
 ```
 
-The `NetworkLogger.start()`, `NetworkLogger.dashboardUrl`, and `NetworkLogger.isRunning` helpers are also available. Stopping the server closes dashboard connections; the interceptor still records calls while the logger configuration is enabled. Call `NetworkLogStore.instance.clearLogs()` to clear stored entries.
+Rules match exact host, path, method and direction. Denies win. Allowing an object
+path allows its descendants except denied fields. Text capture requires explicit
+`BodyCaptureMode.text`; arbitrary secrets in text cannot be reliably redacted.
+Uploads, binary bodies and streams remain summaries and are never consumed by the
+logger. Limits bound retained calls, encoded bytes and capture traversal; defaults
+include 200 calls, 8 MiB store and 64 KiB per body. Output models and snapshots are
+immutable. `session.getSnapshot().toJson()` returns detached serialized data.
 
-The store keeps the most recent 200 transactions in memory. In 1.2.1, completed log maps retain all previous keys and add `requestHeaders` and `requestTimestamp`. The legacy `headers` and `timestamp` fields continue to represent the most recent update. Existing `addRequest` and `addResponse` APIs are unchanged.
+## Migrate from 1.x
 
-## Troubleshooting
+Before:
 
-- Check that the server started and port 3000 is free.
-- Check that the Dio instance making requests has `CoteNetworkLogger` attached.
-- For release builds, use one of the enabling build flags above.
-- If Wi-Fi blocks access, use Android USB forwarding.
-- On iOS, allow local network access for the app if prompted or available in Settings.
-- Plain HTTP uses a selection-based copy fallback. If the browser denies copying, the button shows `Failed`; try another browser or select the text manually.
+```dart
+final dio = Dio()..interceptors.add(const CoteNetworkLogger());
+await startNetworkLogServer();
+```
 
-See the [example](example) and [CHANGELOG.md](CHANGELOG.md). Licensed under [MIT](LICENSE).
+After:
+
+```dart
+final session = NetworkLoggerSession(config: LoggerConfig());
+final dio = Dio()..interceptors.add(CoteNetworkLogger(session: session));
+final result = await session.start();
+// Handle result.status; deliberately reveal session.pairingUri() in your UI.
+// On owner shutdown: await session.dispose();
+```
+
+| Removed 1.x API | 2.0 replacement |
+| --- | --- |
+| `NetworkLogger.configure`, `NetworkLoggerConfig`, environment helpers | App-owned `LoggerConfig` and build gate above |
+| `NetworkLogger.start`, `startNetworkLogServer`, `startDashboard` | `session.start()` returning `LoggerStartResult` |
+| URL/running/support globals and singleton server | `session.dashboardUri`, `isRunning`, `platformSupport` |
+| `stopNetworkLogServer` | `session.stop()` |
+| `NetworkLogStore.instance`, `getLogs`, `logCount` | `session.getCalls()` and its length |
+| `clearLogs`, `clear` on the store | `session.clear()` |
+| Request/response constructors and raw store injection | Read-only `NetworkCall.request`, `.response`, `.error` |
+| `getRequest`, `getResponse` | Find the call ID in `session.getCalls()` |
+| `broadcastLog`, public dashboard asset imports | Removed; internal authenticated transport |
+| `/logs`, `/logs/clear`, `/ws` | Removed with HTTP 410; authenticated `/api/v2` protocol |
+
+There are no insecure compatibility wrappers. Import only the package entrypoint.
+The package and embedded dashboard must be upgraded together.
+
+## Interpret captured data
+
+- Capture observes Dio callbacks, not wire traffic. Dio `data == null` cannot
+  reliably distinguish an absent body from explicit JSON null; the adapter records
+  it as absent. False, zero and empty strings remain values when allowed.
+- List-valued query encoding is approximate and marked `queryEncodingApproximate`.
+  cURL is a sanitized, potentially incomplete aid, not byte-exact replay. It omits
+  unsafe or incomplete bodies and reports missing information.
+- Body sizes describe captured encoding, not transferred wire bytes. Unknown
+  sizes and durations stay unknown. JSON and HAR exports carry capture metadata.
+- HAR uses a synthetic `wait` allocation for the observed Dio total duration. It
+  is **not measured TTFB**; DNS, connect and transfer phases are unavailable.
+  Calls without a known start time or usable HTTP URL are skipped with a reason.
+- Dashboard pause freezes the visible view only; capture continues. Clear and new
+  sessions invalidate frozen details too. Offline views remain stale until the
+  next authenticated snapshot; no durable offline storage is provided.
+
+## Validation status
+
+The compatibility matrix exercised Flutter 3.24.5 / Dart 3.5.4 and Flutter 3.47.9 /
+Dart 3.13.7, each with Dio 5.4.0 and 5.11.1. Separate public consumers pass on these combinations. Chromium and WebKit
+authentication, synchronization, pause and export checks pass; an exported HAR
+imports in Chrome DevTools. A web release consumer returns unsupportedPlatform
+without retaining calls. These checks do not establish device performance or
+production readiness. Android release functional and APK-size checks pass, including authenticated
+USB dashboard access. The strict frame acceptance gate is unmet: ten runs
+reported 17 over-budget FrameTiming events with logging versus 10 without it;
+these are timing proxies, not measured physical missed frames. Full-store heap,
+remaining device timing/LAN checks and final release gates remain open.
+iOS/Safari application parity is not validated. No 2.0 publication is claimed.
+
+See the [example](example/lib/main.dart) and [changelog](CHANGELOG.md).
+Licensed under [MIT](LICENSE).

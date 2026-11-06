@@ -7,12 +7,54 @@ import 'package:flutter_test/flutter_test.dart';
 import 'interceptor_flow_test.dart' show FakeAdapter;
 
 void main() {
-  test('advertised URL and logs endpoint survive odd bodies', () async {
-    final store = NetworkLogStore.instance..clear();
-    final dio = Dio()..interceptors.add(const CoteNetworkLogger());
+  test(
+      'public authenticated server preserves binary summaries and live updates',
+      () async {
+    final session = NetworkLoggerSession(config: LoggerConfig(port: 0));
+    await session.start();
+    addTearDown(session.dispose);
+    final uri = session.dashboardUri!;
+    final token =
+        Uri.splitQueryString(session.pairingUri()!.fragment)['token']!;
+    final client = HttpClient();
+    addTearDown(() => client.close(force: true));
+    Future<HttpClientResponse> get(String path, {bool auth = true}) async {
+      final req = await client.getUrl(uri.resolve(path));
+      if (auth) req.headers.set('authorization', 'Bearer $token');
+      return req.close();
+    }
+
+    final unauthorized = await get('/api/v2/calls', auth: false);
+    expect(unauthorized.statusCode, 401);
+    await unauthorized.drain<void>();
+    final stream = await get('/api/v2/events');
+    final messages = StreamIterator<String>(
+      stream.transform(utf8.decoder).transform(const LineSplitter()),
+    );
+    addTearDown(messages.cancel);
+    expect(await messages.moveNext(), isTrue);
+    final init = jsonDecode(messages.current);
+    expect(init['type'], 'authenticated');
+    final ack = await client.postUrl(uri.resolve('/api/v2/events/ack'));
+    ack.headers.set('authorization', 'Bearer $token');
+    ack.headers.contentType = ContentType.json;
+    final data = utf8.encode(
+      jsonEncode({
+        'sessionId': init['sessionId'],
+        'clientId': init['clientId'],
+        'version': init['version'],
+      }),
+    );
+    ack.contentLength = data.length;
+    ack.add(data);
+    final ackResult = await ack.close();
+    expect(ackResult.statusCode, 204);
+    await ackResult.drain<void>();
+    final dio = Dio()
+      ..interceptors.add(CoteNetworkLogger(session: session))
+      ..httpClientAdapter =
+          FakeAdapter((_) => ResponseBody.fromBytes([1, 2, 3], 200));
     addTearDown(dio.close);
-    dio.httpClientAdapter =
-        FakeAdapter((_) => ResponseBody.fromBytes([1, 2, 3], 200));
     await dio.post(
       'https://example.test/upload',
       data: FormData.fromMap({
@@ -20,83 +62,28 @@ void main() {
       }),
       options: Options(responseType: ResponseType.bytes),
     );
-    await dio.get(
-      'https://example.test/normal',
-      options: Options(responseType: ResponseType.bytes),
+    expect(
+      await messages.moveNext().timeout(const Duration(seconds: 3)),
+      isTrue,
     );
-    final cycle = <String, dynamic>{};
-    cycle['self'] = cycle;
-    store.upsertLog('cyclic', {'requestBody': cycle, 'responseBody': Object()});
-    final server = NetworkLogWebServer.instance;
-    expect(await server.start(), isTrue);
-    addTearDown(server.stop);
-    final uri = Uri.parse(server.dashboardUrl);
-    expect(uri.scheme, 'http');
-    expect(uri.port, 3000);
-    expect(uri.path, isEmpty);
-    final addresses =
-        (await NetworkInterface.list(type: InternetAddressType.IPv4))
-            .expand((interface) => interface.addresses)
-            .map((address) => address.address);
-    expect(uri.host == 'localhost' || addresses.contains(uri.host), isTrue);
-    final client = HttpClient();
-    addTearDown(() => client.close(force: true));
-    final page = await (await client.getUrl(uri)).close();
-    expect(page.statusCode, 200);
-    await page.drain<void>();
-    final response = await (await client.getUrl(uri.resolve('/logs'))).close();
+    expect(jsonDecode(messages.current)['type'], 'changed');
+    final response = await get('/api/v2/calls');
     expect(response.statusCode, 200);
     final payload = jsonDecode(await utf8.decoder.bind(response).join());
-    expect(payload['count'], 3);
-    final upload = (payload['logs'] as List)
-        .singleWhere((log) => log['url'] == 'https://example.test/upload');
-    expect(upload['requestBody'], contains('FormData'));
-    expect(upload['responseBody'], contains('3 bytes'));
-  });
-
-  test('stopping closes multiple clients safely', () async {
-    final server = NetworkLogWebServer.instance;
-    expect(await server.start(), isTrue);
-    addTearDown(server.stop);
-    final clients = await Future.wait([
-      WebSocket.connect('ws://localhost:3000/ws'),
-      WebSocket.connect('ws://localhost:3000/ws'),
-    ]);
-    final closed = clients.map((client) => client.drain<void>()).toList();
-    await server.stop();
-    await Future.wait(closed).timeout(const Duration(seconds: 3));
-    expect(server.isRunning, isFalse);
-  });
-  test('connected clients receive a completed Dio call without refreshing',
-      () async {
-    NetworkLogStore.instance.clear();
-    final server = NetworkLogWebServer.instance;
-    expect(await server.start(), isTrue);
-    addTearDown(server.stop);
-    final socket = await WebSocket.connect('ws://localhost:3000/ws');
-    final messages = StreamIterator<dynamic>(socket);
-    addTearDown(() async {
-      await messages.cancel();
-      await socket.close();
-    });
-    expect(await messages.moveNext(), isTrue);
-    expect(jsonDecode(messages.current as String)['type'], 'init');
-    final dio = Dio()..interceptors.add(const CoteNetworkLogger());
-    addTearDown(dio.close);
-    dio.httpClientAdapter =
-        FakeAdapter((_) => ResponseBody.fromString('ok', 200));
-    await dio.get('https://example.test/live');
-    final received = <Map<String, dynamic>>[];
-    for (var i = 0; i < 2; i++) {
+    expect(payload['calls'].length, 1);
+    expect(payload['calls'][0]['request']['body']['kind'], 'multipartSummary');
+    expect(payload['calls'][0]['response']['body']['kind'], 'binarySummary');
+    expect(payload['calls'][0]['state'], 'completed');
+    await session.stop();
+    expect(session.isRunning, isFalse);
+    try {
       expect(
         await messages.moveNext().timeout(const Duration(seconds: 3)),
-        isTrue,
+        isFalse,
       );
-      received
-          .add(jsonDecode(messages.current as String) as Map<String, dynamic>);
+    } on HttpException {
+      // Stop may abort an HTTP stream before its terminating chunk.
+      expect(session.isRunning, isFalse);
     }
-    expect(received.map((e) => e['type']), everyElement('log'));
-    expect(received.last['log']['status'], 'completed');
-    expect(received.last['log']['url'], 'https://example.test/live');
   });
 }

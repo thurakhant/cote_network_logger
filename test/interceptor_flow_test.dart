@@ -20,15 +20,28 @@ class FakeAdapter implements HttpClientAdapter {
 }
 
 void main() {
-  setUp(() => NetworkLogStore.instance.clear());
   for (final status in [200, 500]) {
-    test('request fields survive response $status and old keys remain',
+    test('request fields survive response $status through public session',
         () async {
-      Map<String, dynamic>? pending;
-      final dio = Dio()..interceptors.add(const CoteNetworkLogger());
+      final session = NetworkLoggerSession(
+        config: LoggerConfig(
+          port: 0,
+          capture: CapturePolicy(
+            allowedHeaders: {
+              'x-request',
+              'x-response',
+              'content-type',
+            },
+          ),
+        ),
+      );
+      expect((await session.start()).status, LoggerStartStatus.running);
+      addTearDown(session.dispose);
+      NetworkCall? pending;
+      final dio = Dio()..interceptors.add(CoteNetworkLogger(session: session));
       addTearDown(dio.close);
       dio.httpClientAdapter = FakeAdapter((options) {
-        pending = Map.of(NetworkLogStore.instance.getLogs().single);
+        pending = session.getCalls().single;
         return ResponseBody.fromString(
           '{"ok":true}',
           status,
@@ -47,24 +60,17 @@ void main() {
       } on DioException {
         if (status == 200) rethrow;
       }
-      final log = NetworkLogStore.instance.getLogs().single;
-      expect(log['requestHeaders'], containsPair('x-request', 'yes'));
-      expect(log['requestTimestamp'], pending!['timestamp']);
-      expect(log['headers'], containsPair('x-response', ['yes']));
+      final log = session.getCalls().single;
+      expect(log.request.headers, containsPair('x-request', ['yes']));
+      expect(log.request.startedAt, pending!.request.startedAt);
+      expect(log.response!.headers, containsPair('x-response', ['yes']));
+      expect(log.response!.statusCode, status);
       expect(
-        log.keys,
-        containsAll([
-          'transactionId',
-          'method',
-          'url',
-          'headers',
-          'statusCode',
-          'requestBody',
-          'responseBody',
-          'status',
-          'timestamp',
-        ]),
+        log.state,
+        status == 200 ? NetworkCallState.completed : NetworkCallState.failed,
       );
+      expect(log.durationMicros, greaterThanOrEqualTo(0));
+      expect(pending!.state, NetworkCallState.pending);
     });
   }
 }

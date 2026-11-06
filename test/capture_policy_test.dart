@@ -13,59 +13,77 @@ class Poison {
 void main() {
   test('explicit null, primitives, direction, conflicts, traversal budgets',
       () {
-    CaptureEngine engine(
-            {LoggerLimits limits = const LoggerLimits(),
-            List<BodyCaptureRule>? rules,}) =>
+    CaptureEngine engine({
+      LoggerLimits limits = const LoggerLimits(),
+      List<BodyCaptureRule>? rules,
+    }) =>
         CaptureEngine(
-            limits: limits,
-            policy: CapturePolicy(
-                bodyRules: rules ??
-                    [
-                      BodyCaptureRule(
-                          host: 'a', path: '/', allowedJsonPaths: {r'$'},),
-                    ],),);
+          limits: limits,
+          policy: CapturePolicy(
+            bodyRules: rules ??
+                [
+                  BodyCaptureRule(
+                    host: 'a',
+                    path: '/',
+                    allowedJsonPaths: {r'$'},
+                  ),
+                ],
+          ),
+        );
     final e = engine();
     expect(
-        e.request(method: 'GET', url: 'https://a/').body.kind, BodyKind.absent,);
+      e.request(method: 'GET', url: 'https://a/').body.kind,
+      BodyKind.absent,
+    );
     for (final value in [null, false, 0, '']) {
       final result =
           e.request(method: 'GET', url: 'https://a/', body: value).body;
       expect(result.kind, BodyKind.json);
       expect(result.content, value);
     }
-    final depth = engine(limits: const LoggerLimits(maxDepth: 1))
-        .request(method: 'GET', url: 'https://a/', body: [
-      [1],
-    ],);
+    final depth = engine(limits: const LoggerLimits(maxDepth: 1)).request(
+      method: 'GET',
+      url: 'https://a/',
+      body: [
+        [1],
+      ],
+    );
     expect(depth.body.omissionReason, 'depthLimit');
     final nodes = engine(limits: const LoggerLimits(maxVisitedNodes: 2))
         .request(method: 'GET', url: 'https://a/', body: [1, 2]);
     expect(nodes.body.omissionReason, 'nodeLimit');
-    final conflict = engine(rules: [
-      BodyCaptureRule(host: 'a', path: '/', allowedJsonPaths: {r'$'}),
-      BodyCaptureRule(host: 'a', path: '/', mode: BodyCaptureMode.text),
-    ],).request(method: 'GET', url: 'https://a/', body: 'SECRET');
+    final conflict = engine(
+      rules: [
+        BodyCaptureRule(host: 'a', path: '/', allowedJsonPaths: {r'$'}),
+        BodyCaptureRule(host: 'a', path: '/', mode: BodyCaptureMode.text),
+      ],
+    ).request(method: 'GET', url: 'https://a/', body: 'SECRET');
     expect(conflict.body.omissionReason, 'policyConflict');
-    final responseOnly = engine(rules: [
-      BodyCaptureRule(
+    final responseOnly = engine(
+      rules: [
+        BodyCaptureRule(
           host: 'a',
           path: '/',
           direction: BodyDirection.response,
-          allowedJsonPaths: {r'$'},),
-    ],);
+          allowedJsonPaths: {r'$'},
+        ),
+      ],
+    );
     expect(
-        responseOnly
-            .request(method: 'GET', url: 'https://a/', body: 'SECRET')
-            .body
-            .content,
-        isNull,);
+      responseOnly
+          .request(method: 'GET', url: 'https://a/', body: 'SECRET')
+          .body
+          .content,
+      isNull,
+    );
     final headers = e.response(
-        host: 'a',
-        path: '/',
-        method: 'GET',
-        endedAt: DateTime.utc(2026),
-        headers: {'accept': 'x' * 200},
-        headerBudgetBytes: 10,);
+      host: 'a',
+      path: '/',
+      method: 'GET',
+      endedAt: DateTime.utc(2026),
+      headers: {'accept': 'x' * 200},
+      headerBudgetBytes: 10,
+    );
     expect(headers.headers, isEmpty);
   });
   test('safe defaults and mandatory deny', () {

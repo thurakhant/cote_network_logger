@@ -6,8 +6,10 @@ import 'interceptor_flow_test.dart' show FakeAdapter;
 
 void main() {
   test('FormData, bytes and unsupported bodies remain JSON-safe', () async {
-    final store = NetworkLogStore.instance..clear();
-    final dio = Dio()..interceptors.add(const CoteNetworkLogger());
+    final session = NetworkLoggerSession(config: LoggerConfig(port: 0));
+    await session.start();
+    addTearDown(session.dispose);
+    final dio = Dio()..interceptors.add(CoteNetworkLogger(session: session));
     addTearDown(dio.close);
     dio.httpClientAdapter =
         FakeAdapter((_) => ResponseBody.fromBytes([1, 2, 3], 200));
@@ -22,30 +24,47 @@ void main() {
       'https://example.test/normal',
       options: Options(responseType: ResponseType.bytes),
     );
-    final cycle = <String, dynamic>{};
-    cycle['self'] = cycle;
-    store.upsertLog('cyclic', {'requestBody': cycle, 'responseBody': Object()});
-    final payload = jsonDecode(
-      jsonEncode({'logs': store.getLogs(), 'count': store.logCount}),
+    final payload = jsonDecode(jsonEncode(session.getSnapshot().toJson()));
+    expect(payload['calls'].length, 2);
+    final upload = (payload['calls'] as List).singleWhere(
+      (call) => call['request']['url'] == 'https://example.test/upload',
     );
-    expect(payload['count'], 3);
-    final upload = (payload['logs'] as List)
-        .singleWhere((log) => log['url'] == 'https://example.test/upload');
-    expect(upload['requestBody'], isA<String>());
-    expect(upload['requestBody'], contains('FormData'));
-    expect(upload['responseBody'], contains('3 bytes'));
+    expect(upload['request']['body']['kind'], 'multipartSummary');
+    expect(upload['response']['body']['kind'], 'binarySummary');
+    expect(upload['response']['body']['content'], isNull);
   });
 
-  test('JSON body is snapshotted before caller can mutate it', () {
-    final store = NetworkLogStore.instance..clear();
+  test('JSON body is snapshotted before caller can mutate it', () async {
+    final session = NetworkLoggerSession(
+      config: LoggerConfig(
+        port: 0,
+        capture: CapturePolicy(
+          bodyRules: [
+            BodyCaptureRule(
+              host: 'example.test',
+              path: '/json',
+              methods: {'POST'},
+              allowedJsonPaths: {r'$.items[*]'},
+            ),
+          ],
+        ),
+      ),
+    );
+    await session.start();
+    addTearDown(session.dispose);
     final body = {
       'items': <dynamic>[1, true, null],
     };
-    store.upsertLog('json', {'requestBody': body});
+    final dio = Dio()
+      ..interceptors.add(CoteNetworkLogger(session: session))
+      ..httpClientAdapter =
+          FakeAdapter((_) => ResponseBody.fromString('{}', 200));
+    addTearDown(dio.close);
+    await dio.post('https://example.test/json', data: body);
     body['items']!.add(Object());
-    expect(store.getLogs().single['requestBody'], {
+    expect(session.getCalls().single.request.body.content, {
       'items': [1, true, null],
     });
-    expect(() => jsonEncode(store.getLogs()), returnsNormally);
+    expect(() => jsonEncode(session.getSnapshot().toJson()), returnsNormally);
   });
 }
