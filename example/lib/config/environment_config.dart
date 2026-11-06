@@ -55,7 +55,9 @@ class EnvironmentConfig {
   /// Get current environment
   String get currentEnvironment {
     if (kDebugMode) return debug;
-    if (const bool.fromEnvironment('STAGING_ENV', defaultValue: false)) return staging;
+    if (const bool.fromEnvironment('STAGING_ENV', defaultValue: false)) {
+      return staging;
+    }
     return release;
   }
 

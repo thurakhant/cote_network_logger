@@ -227,6 +227,50 @@ class DashboardScript {
         updateTable();
     }
 
+    function generateCurlCommand(request) {
+        if (!request) return '';
+        let curl = `curl '${request.url}' \\\n  -X ${request.method}`;
+        if (request.headers) {
+            Object.entries(request.headers).forEach(([k, v]) => {
+                // Mask sensitive headers
+                if (k.toLowerCase() === 'authorization' || k.toLowerCase() === 'cookie') {
+                    curl += ` \\\n  -H '${k}: <REDACTED>'`;
+                } else {
+                    curl += ` \\\n  -H '${k}: ${v}'`;
+                }
+            });
+        }
+        if (request.body) {
+            let body = request.body;
+            if (typeof body === 'object') {
+                try { body = JSON.stringify(body); } catch (e) { body = String(body); }
+            }
+            // Escape single quotes for shell
+            body = String(body).replace(/'/g, "'\\''");
+            curl += ` \\\n  --data '${body}'`;
+        }
+        curl += `\n# Copied from CoteNetworkLogger at ${new Date().toLocaleString()}`;
+        return curl;
+    }
+
+    function copyCurlCommand(event, transactionId) {
+        event.preventDefault();
+        event.stopPropagation();
+        const transaction = allTransactions.find(t => t.id === transactionId);
+        if (!transaction || !transaction.request) return;
+        const curl = generateCurlCommand(transaction.request);
+        navigator.clipboard.writeText(curl).then(() => {
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = '✓ cURL Copied!';
+            btn.style.background = 'rgba(56, 161, 105, 0.9)';
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.background = '';
+            }, 2000);
+        });
+    }
+
     function createDetailedView(transaction) {
         let html = '';
         
@@ -248,6 +292,7 @@ class DashboardScript {
                         <strong>Time:</strong> <span class="timestamp">${new Date(transaction.timestamp).toLocaleString()}</span>
                     </div>
                 </div>
+                <button class="copy-btn" style="margin-top:12px;float:right;" onclick="copyCurlCommand(event, '${transaction.id}')">Copy cURL</button>
             </div>
         `;
 
@@ -269,14 +314,14 @@ class DashboardScript {
             }
             
             if (req.requestBody) {
-                const isLargeBody = JSON.stringify(req.requestBody).length > 1000;
+                const isLargeBody = JSON.stringify(req.requestBody).length > 5000; // Increased threshold
                 html += createExpandableSection(
                     'Request Body', 
                     req.requestBody, // Pass raw body instead of formatted JSON
                     '📝',
                     transaction.id, 
                     'requestBody',
-                    !isLargeBody // Default expanded if small, collapsed if large
+                    true // Always expand by default for better developer experience
                 );
             }
             
@@ -300,16 +345,22 @@ class DashboardScript {
                 );
             }
             
-            if (res.responseBody) {
-                const isLargeBody = JSON.stringify(res.responseBody).length > 1000;
+            if (res.responseBody !== undefined && res.responseBody !== null) {
+                const isLargeBody = JSON.stringify(res.responseBody).length > 5000; // Increased threshold
                 html += createExpandableSection(
                     'Response Body', 
                     res.responseBody, // Pass raw body instead of formatted JSON
                     '📄',
                     transaction.id, 
                     'responseBody',
-                    !isLargeBody // Default expanded if small, collapsed if large
+                    true // Always expand by default for better developer experience
                 );
+            } else {
+                // Show debug info if response body is missing
+                html += `<div style="padding: 16px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; margin: 16px 0;">
+                    <strong>🔍 Debug Info:</strong> Response body not found<br>
+                    <small>Available fields: ${Object.keys(res).join(', ')}</small>
+                </div>`;
             }
             
             // Additional response metadata if available
@@ -1012,6 +1063,7 @@ class DashboardScript {
     window.toggleRow = toggleRow;
     window.toggleSection = toggleSection;
     window.copyJsonContent = copyJsonContent;
+    window.copyCurlCommand = copyCurlCommand;
     window.refreshLogs = refreshLogs;
     window.clearLogs = clearLogs;
     window.forceRefreshNow = forceRefreshNow;

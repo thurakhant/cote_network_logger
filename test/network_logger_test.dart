@@ -25,7 +25,7 @@ void main() {
         'url': 'https://example.com',
       };
 
-      store.addLog(testLog);
+      store.upsertLog(testLog['id'] as String, testLog);
       final logs = store.getLogs();
 
       expect(logs.length, equals(1));
@@ -38,11 +38,14 @@ void main() {
 
       // Add more than the limit
       for (int i = 0; i < 250; i++) {
-        store.addLog({
-          'id': i.toString(),
-          'type': 'request',
-          'timestamp': DateTime.now().toIso8601String(),
-        });
+        store.upsertLog(
+          i.toString(),
+          {
+            'id': i.toString(),
+            'type': 'request',
+            'timestamp': DateTime.now().toIso8601String(),
+          },
+        );
       }
 
       final logs = store.getLogs();
@@ -53,8 +56,14 @@ void main() {
       final store = NetworkLogStore.instance;
 
       // Add some logs
-      store.addLog({'id': '1', 'type': 'request'});
-      store.addLog({'id': '2', 'type': 'response'});
+      store.upsertLog(
+        '1',
+        {'id': '1', 'type': 'request'},
+      );
+      store.upsertLog(
+        '2',
+        {'id': '2', 'type': 'response'},
+      );
 
       expect(store.logCount, equals(2));
 

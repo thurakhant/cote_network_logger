@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shelf/shelf.dart';
+import 'package:shelf_static/shelf_static.dart';
 import 'dart:async';
 import 'web_server/dashboard_template.dart';
 import 'web_server/dashboard_script.dart';
@@ -30,6 +31,7 @@ class NetworkLogWebServer {
 
   HttpServer? _server;
   bool _isRunning = false;
+  Timer? _monitorTimer;
 
   // WebSocket clients
   final Set<WebSocket> _wsClients = <WebSocket>{};
@@ -67,130 +69,158 @@ class NetworkLogWebServer {
   ///
   /// Returns true if the server started successfully, false otherwise.
   Future<bool> start() async {
-    if (!NetworkLoggerConfig.isEnabled) return false;
-    if (!isPlatformSupported) return false;
-    if (_isRunning) return false;
+    if (!NetworkLoggerConfig.isEnabled) {
+      return false;
+    }
+    if (!isPlatformSupported) {
+      return false;
+    }
+    if (_isRunning) {
+      return false;
+    }
 
     try {
-      debugPrint('🚀 NetworkLogWebServer: Starting server on ${NetworkLoggerConfig.serverHost}:${NetworkLoggerConfig.serverPort}...');
+      if (kDebugMode) {
+        debugPrint('🚀 NetworkLogWebServer: Starting server on ${NetworkLoggerConfig.serverHost}:${NetworkLoggerConfig.serverPort}...');
+      }
       final handler = _createHandler();
       _server = await HttpServer.bind(NetworkLoggerConfig.serverHost, NetworkLoggerConfig.serverPort);
       _isRunning = true;
 
       _server!.listen((HttpRequest request) async {
-        if (request.uri.path == '/ws' && WebSocketTransformer.isUpgradeRequest(request)) {
-          final socket = await WebSocketTransformer.upgrade(request);
-          _wsClients.add(socket);
-          socket.add(
-            jsonEncode(<String, dynamic>{
-              'type': 'init',
-              'logs': NetworkLogStore.instance.getLogs(),
-            }),
+        try {
+          if (request.uri.path == '/ws' && WebSocketTransformer.isUpgradeRequest(request)) {
+            final socket = await WebSocketTransformer.upgrade(request);
+            _handleWebSocketConnection(socket);
+            return;
+          }
+
+          final headers = <String, String>{};
+          request.headers.forEach((name, values) {
+            if (values.isNotEmpty) headers[name] = values.join(',');
+          });
+
+          final shelfRequest = Request(
+            request.method,
+            request.requestedUri,
+            headers: headers,
+            body: request,
+            context: {'shelf.io.request': request},
           );
-          socket.done.then((_) => _wsClients.remove(socket));
-          return;
+
+          final shelfResponse = await handler(shelfRequest);
+          request.response.statusCode = shelfResponse.statusCode;
+          shelfResponse.headers.forEach((name, value) {
+            request.response.headers.set(name, value);
+          });
+          await shelfResponse.read().forEach(request.response.add);
+          await request.response.close();
+        } catch (e) {
+          if (kDebugMode) debugPrint('❌ NetworkLogWebServer: Error handling request: $e');
+          request.response.statusCode = 500;
+          request.response.write('Internal Server Error');
+          await request.response.close();
         }
-        // Convert HttpHeaders to Map<String, String>
-        final headers = <String, String>{};
-        request.headers.forEach((name, values) {
-          if (values.isNotEmpty) headers[name] = values.join(',');
-        });
-        final shelfRequest = Request(
-          request.method,
-          request.requestedUri,
-          headers: headers,
-          body: request,
-          context: {'shelf.io.request': request},
-        );
-        final shelfResponse = await handler(shelfRequest);
-        // Write shelf response to HttpResponse
-        request.response.statusCode = shelfResponse.statusCode;
-        shelfResponse.headers.forEach((name, value) {
-          request.response.headers.set(name, value);
-        });
-        await shelfResponse.read().forEach(request.response.add);
-        await request.response.close();
       });
 
-      debugPrint('✅ NetworkLogWebServer: Server started successfully!');
-      debugPrint('🌐 Network Logger Dashboard: $dashboardUrl');
-      await _printAccessInstructions();
+      _startMonitoring();
+      if (kDebugMode) {
+        debugPrint('✅ NetworkLogWebServer: Server started successfully!');
+        debugPrint('🌐 Network Logger Dashboard: $dashboardUrl');
+      }
       return true;
     } catch (e) {
-      debugPrint('❌ NetworkLogWebServer: Failed to start server: $e');
+      if (kDebugMode) debugPrint('❌ NetworkLogWebServer: Failed to start server: $e');
       _isRunning = false;
       return false;
     }
   }
 
-  /// Prints platform-specific instructions for accessing the dashboard.
-  Future<void> _printAccessInstructions() async {
-    final deviceIp = await _getLocalIpAddress();
+  void _handleWebSocketConnection(WebSocket socket) {
+    _wsClients.add(socket);
 
-    debugPrint('');
-    debugPrint('📱 ACCESS DASHBOARD:');
+    // Send initial logs with more detailed information
+    final logs = NetworkLogStore.instance.getLogs();
+    final enhancedLogs = logs.map((log) {
+      return {
+        ...log,
+        'displayStatus': _getDisplayStatus(log),
+        'displayType': _getDisplayType(log),
+        'displayMethod': _getDisplayMethod(log),
+      };
+    }).toList();
 
-    if (Platform.isIOS) {
-      debugPrint('');
-      debugPrint('🔧 IMPORTANT: Enable Local Network Access');
-      debugPrint('   Go to: Settings > Privacy & Security > Local Network');
-      debugPrint('   Enable access for your app');
-      debugPrint('');
-      debugPrint(
-        '📱 iOS Simulator: Open http://localhost:3000 in your Mac browser',
-      );
-      if (deviceIp != null) {
-        debugPrint(
-          '📱 Physical iPhone: Open http://$deviceIp:3000 in Safari',
-        );
-        debugPrint(
-          '   ✅ Your device IP: $deviceIp',
-        );
-      } else {
-        debugPrint(
-          '📱 Physical iPhone: Open http://YOUR_MAC_IP:3000 in Safari',
-        );
-        debugPrint(
-          '   💡 Find your Mac IP: System Settings > Wi-Fi > Details > TCP/IP',
-        );
-      }
-      debugPrint(
-        '   💡 Both devices must be on the same Wi-Fi network',
-      );
-      debugPrint(
-        '   💡 Alternative: Use your Mac\'s computer name: http://YOUR-MAC-NAME.local:3000',
-      );
-    } else if (Platform.isAndroid) {
-      debugPrint(
-        '📱 Android Emulator: Open http://10.0.2.2:3000 in the emulator browser',
-      );
-      if (deviceIp != null) {
-        debugPrint('📱 Physical Android: Open http://$deviceIp:3000 in Chrome');
-        debugPrint('   ✅ Your device IP: $deviceIp');
-      } else {
-        debugPrint(
-          '📱 Physical Android: Open http://YOUR_MAC_IP:3000 in Chrome',
-        );
-        debugPrint('   💡 Find your Mac IP: System Preferences > Network');
-      }
-      debugPrint('   💡 Both devices must be on the same Wi-Fi network');
-    } else {
-      debugPrint('💻 Desktop: Open http://localhost:3000 in your browser');
-      if (deviceIp != null) {
-        debugPrint('   ✅ Network access: http://$deviceIp:3000');
-      }
-    }
-
-    debugPrint('');
-    debugPrint(
-      '🎨 Features: Real-time monitoring, beautiful UI, filtering, search',
+    socket.add(
+      jsonEncode(
+        <String, dynamic>{
+          'type': 'init',
+          'logs': enhancedLogs,
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      ),
     );
-    debugPrint('🔥 Make HTTP requests in your app to see them appear!');
-    debugPrint('');
+
+    socket.listen(
+      (data) {
+        // WebSocket message received - no action needed
+      },
+      onError: (error) {
+        _wsClients.remove(socket);
+      },
+      onDone: () {
+        _wsClients.remove(socket);
+      },
+    );
+  }
+
+  String _getDisplayStatus(Map<String, dynamic> log) {
+    final status = log['status'] as String?;
+    final statusCode = log['statusCode'] as int?;
+
+    if (status == 'error') return 'error';
+    if (status == 'pending') return 'pending';
+    if (statusCode != null) {
+      if (statusCode >= 200 && statusCode < 300) return 'success';
+      if (statusCode >= 400) return 'error';
+    }
+    return 'unknown';
+  }
+
+  String _getDisplayType(Map<String, dynamic> log) {
+    final type = log['type'] as String?;
+    if (type == 'request') return 'Request';
+    if (type == 'response') return 'Response';
+    if (type == 'error') return 'Error';
+    return 'Unknown';
+  }
+
+  String _getDisplayMethod(Map<String, dynamic> log) {
+    final method = log['method'] as String?;
+    if (method == null) return 'UNKNOWN';
+    return method.toUpperCase();
+  }
+
+  void _startMonitoring() {
+    _monitorTimer?.cancel();
+    _monitorTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      // Background monitoring - no logging needed in production
+    });
   }
 
   /// Stops the web server if running.
   Future<void> stop() async {
+    _monitorTimer?.cancel();
+    _monitorTimer = null;
+
+    for (final client in _wsClients) {
+      try {
+        await client.close();
+      } catch (e) {
+        // Silent close - errors not critical during shutdown
+      }
+    }
+    _wsClients.clear();
+
     if (_server != null) {
       await _server!.close();
       _server = null;
@@ -213,20 +243,33 @@ class NetworkLogWebServer {
 
   /// Broadcasts a new log entry to all connected WebSocket clients.
   void broadcastLog(Map<String, dynamic> logEntry) {
-    if (!kDebugMode || _wsClients.isEmpty) return;
+    if (!kDebugMode) return;
+    if (_wsClients.isEmpty) return;
 
-    final message = jsonEncode({
-      'type': 'log',
-      'log': logEntry,
-    });
+    try {
+      // Enhance the log entry with display information
+      final enhancedLog = {
+        ...logEntry,
+        'displayStatus': _getDisplayStatus(logEntry),
+        'displayType': _getDisplayType(logEntry),
+        'displayMethod': _getDisplayMethod(logEntry),
+      };
 
-    for (final client in _wsClients) {
-      try {
-        client.add(message);
-      } catch (e) {
-        debugPrint('❌ NetworkLogWebServer: Failed to broadcast to client: $e');
-        _wsClients.remove(client);
+      final message = jsonEncode({
+        'type': 'log',
+        'log': enhancedLog,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
+      for (final client in _wsClients) {
+        try {
+          client.add(message);
+        } catch (e) {
+          _wsClients.remove(client);
+        }
       }
+    } catch (e) {
+      // Silent fail - broadcast is not critical
     }
   }
 
@@ -239,24 +282,98 @@ class NetworkLogWebServer {
 
   /// Creates handler for serving static web assets.
   Handler _createStaticHandler() {
-    return (Request request) {
-      if (request.url.path == '' || request.url.path == '/') {
-        // Get the HTML template and inject the JavaScript
-        final html = DashboardTemplate.getHtml();
-        final script = DashboardScript.getScript();
-        final finalHtml = html.replaceAll('{{DASHBOARD_SCRIPT}}', script).replaceAll('{{TIMESTAMP}}', '');
+    // Try multiple possible paths for the dashboard build
+    final possiblePaths = [
+      // If running from project root
+      'dashboard/build/web',
+      // If running from example directory
+      '../dashboard/build/web',
+      // Absolute path construction attempts
+      '${Directory.current.path}/dashboard/build/web',
+      '${Directory.current.path}/../dashboard/build/web',
+    ];
 
-        return Response.ok(
-          finalHtml,
-          headers: {
-            'content-type': 'text/html',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-          },
-        );
+    Directory? dashboardDir;
+
+    // Try each possible path until we find one that exists
+    for (final path in possiblePaths) {
+      final dir = Directory(path);
+      if (dir.existsSync()) {
+        dashboardDir = dir;
+        break;
       }
-      return Response.notFound('Not found');
+    }
+
+    if (dashboardDir != null) {
+      // Serve the Flutter Web dashboard build with proper MIME types
+      return Pipeline().addMiddleware(_mimeTypeMiddleware()).addHandler(
+            createStaticHandler(
+              dashboardDir.path,
+              defaultDocument: 'index.html',
+              serveFilesOutsidePath: true,
+            ),
+          );
+    } else {
+      // Fallback to the original HTML template if Flutter build doesn't exist
+      return (Request request) {
+        if (request.url.path == '' || request.url.path == '/') {
+          // Get the HTML template and inject the JavaScript
+          final html = DashboardTemplate.getHtml();
+          final script = DashboardScript.getScript();
+          final finalHtml = html.replaceAll('{{DASHBOARD_SCRIPT}}', script).replaceAll('{{TIMESTAMP}}', '');
+
+          return Response.ok(
+            finalHtml,
+            headers: const {
+              'content-type': 'text/html',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+            },
+          );
+        }
+        return Response.notFound('Not found');
+      };
+    }
+  }
+
+  /// Middleware to set correct MIME types for Flutter Web assets
+  Middleware _mimeTypeMiddleware() {
+    return (Handler innerHandler) {
+      return (Request request) async {
+        final response = await innerHandler(request);
+
+        // Set correct MIME types for Flutter Web files
+        final path = request.url.path.toLowerCase();
+        final Map<String, String> headers = Map.from(response.headers);
+
+        if (path.endsWith('.js')) {
+          headers['content-type'] = 'application/javascript; charset=utf-8';
+          headers['cache-control'] = 'no-cache, no-store, must-revalidate';
+        } else if (path.endsWith('.html')) {
+          headers['content-type'] = 'text/html; charset=utf-8';
+          headers['cache-control'] = 'no-cache, no-store, must-revalidate';
+        } else if (path.endsWith('.css')) {
+          headers['content-type'] = 'text/css; charset=utf-8';
+        } else if (path.endsWith('.json')) {
+          headers['content-type'] = 'application/json; charset=utf-8';
+        } else if (path.endsWith('.png')) {
+          headers['content-type'] = 'image/png';
+        } else if (path.endsWith('.ico')) {
+          headers['content-type'] = 'image/x-icon';
+        } else if (path.endsWith('.wasm')) {
+          headers['content-type'] = 'application/wasm';
+        } else if (path.endsWith('.map')) {
+          headers['content-type'] = 'application/json; charset=utf-8';
+        }
+
+        // Add CORS headers for all responses
+        headers['Access-Control-Allow-Origin'] = '*';
+        headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
+        headers['Access-Control-Allow-Headers'] = 'Content-Type';
+
+        return response.change(headers: headers);
+      };
     };
   }
 
@@ -346,36 +463,5 @@ class NetworkLogWebServer {
         },
       );
     }
-  }
-
-  /// Gets the device's local IP address for network access
-  Future<String?> _getLocalIpAddress() async {
-    try {
-      for (final interface in await NetworkInterface.list()) {
-        for (final addr in interface.addresses) {
-          if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
-            // Prefer Wi-Fi interfaces on mobile
-            if (Platform.isIOS || Platform.isAndroid) {
-              if (interface.name.toLowerCase().contains('en0') || interface.name.toLowerCase().contains('wlan') || interface.name.toLowerCase().contains('wifi')) {
-                return addr.address;
-              }
-            } else {
-              return addr.address;
-            }
-          }
-        }
-      }
-      // Fallback: return any non-loopback IPv4 address
-      for (final interface in await NetworkInterface.list()) {
-        for (final addr in interface.addresses) {
-          if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
-            return addr.address;
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('❌ Failed to get local IP address: $e');
-    }
-    return null;
   }
 }

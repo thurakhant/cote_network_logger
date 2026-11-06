@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:cote_network_logger/cote_network_logger.dart';
@@ -17,7 +18,7 @@ void main() async {
 
   // Start the logger
   final serverStarted = await NetworkLogger.start();
-  if (serverStarted) {
+  if (serverStarted && kDebugMode) {
     debugPrint('✅ Network Logger Dashboard: ${NetworkLogger.dashboardUrl}');
   }
 
@@ -414,7 +415,7 @@ class ApiService {
 
   Future<void> getPosts() async {
     final response = await _dio.get('/posts');
-    debugPrint('GET Posts: ${response.statusCode}');
+    if (kDebugMode) debugPrint('GET Posts: ${response.statusCode}');
   }
 
   Future<void> createPost() async {
@@ -426,14 +427,14 @@ class ApiService {
         'userId': 1,
       },
     );
-    debugPrint('POST Create: ${response.statusCode}');
+    if (kDebugMode) debugPrint('POST Create: ${response.statusCode}');
   }
 
   Future<void> triggerError() async {
     try {
       await _dio.get('/posts/nonexistent-endpoint-404');
     } catch (e) {
-      debugPrint('Error Request: $e');
+      if (kDebugMode) debugPrint('Error Request: $e');
       rethrow;
     }
   }
