@@ -226,7 +226,7 @@ class NetworkLogWebServer {
     _monitorTimer?.cancel();
     _monitorTimer = null;
 
-    for (final client in _wsClients) {
+    for (final client in _wsClients.toList()) {
       try {
         await client.close();
       } catch (e) {
@@ -257,7 +257,7 @@ class NetworkLogWebServer {
 
   /// Broadcasts a new log entry to all connected WebSocket clients.
   void broadcastLog(Map<String, dynamic> logEntry) {
-    if (!kDebugMode) return;
+    if (!NetworkLoggerConfig.isEnabled) return;
     if (_wsClients.isEmpty) return;
 
     try {
@@ -275,7 +275,7 @@ class NetworkLogWebServer {
         'timestamp': DateTime.now().toIso8601String(),
       });
 
-      for (final client in _wsClients) {
+      for (final client in _wsClients.toList()) {
         try {
           client.add(message);
         } catch (e) {
