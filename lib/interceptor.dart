@@ -25,14 +25,17 @@ class CoteNetworkLogger extends Interceptor {
     try {
       final transactionId = _generateTransactionId(options);
       _requestTransactionIds[options] = transactionId;
+      final timestamp = DateTime.now().toIso8601String();
       NetworkLogStore.instance.upsertLog(transactionId, {
         'transactionId': transactionId,
         'type': 'request',
         'method': options.method,
         'url': options.uri.toString(),
         'headers': options.headers,
+        'requestHeaders': Map<String, dynamic>.from(options.headers),
+        'requestTimestamp': timestamp,
         'requestBody': options.data,
-        'timestamp': DateTime.now().toIso8601String(),
+        'timestamp': timestamp,
         'status': 'pending',
       });
       handler.next(options);

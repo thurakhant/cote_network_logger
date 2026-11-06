@@ -229,28 +229,49 @@ class DashboardScript {
 
     function generateCurlCommand(request) {
         if (!request) return '';
-        let curl = `curl '${request.url}' \\\n  -X ${request.method}`;
+        const quote = value => "'" + String(value).replace(/'/g, "'\\''") + "'";
+        let curl = `curl ${quote(request.url)} \\\n  -X ${quote(request.method)}`;
         if (request.headers) {
             Object.entries(request.headers).forEach(([k, v]) => {
-                // Mask sensitive headers
-                if (k.toLowerCase() === 'authorization' || k.toLowerCase() === 'cookie') {
-                    curl += ` \\\n  -H '${k}: <REDACTED>'`;
-                } else {
-                    curl += ` \\\n  -H '${k}: ${v}'`;
-                }
+                const value = k.toLowerCase() === 'authorization' || k.toLowerCase() === 'cookie'
+                    ? '<REDACTED>' : v;
+                curl += ` \\\n  -H ${quote(`${k}: ${value}`)}`;
             });
         }
-        if (request.body) {
+        if (request.body !== undefined && request.body !== null) {
             let body = request.body;
             if (typeof body === 'object') {
                 try { body = JSON.stringify(body); } catch (e) { body = String(body); }
             }
-            // Escape single quotes for shell
-            body = String(body).replace(/'/g, "'\\''");
-            curl += ` \\\n  --data '${body}'`;
+            curl += ` \\\n  --data ${quote(body)}`;
         }
         curl += `\n# Copied from CoteNetworkLogger at ${new Date().toLocaleString()}`;
         return curl;
+    }
+
+    async function copyText(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            try {
+                await navigator.clipboard.writeText(text);
+                return;
+            } catch (_) {
+                // Plain HTTP and denied permissions can still use selection copy.
+            }
+        }
+        const previousFocus = document.activeElement;
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        try {
+            textarea.select();
+            if (!document.execCommand('copy')) throw new Error('Copy was denied');
+        } finally {
+            textarea.remove();
+            if (previousFocus && previousFocus.focus) previousFocus.focus();
+        }
     }
 
     function copyCurlCommand(event, transactionId) {
@@ -259,7 +280,7 @@ class DashboardScript {
         const transaction = allTransactions.find(t => t.id === transactionId);
         if (!transaction || !transaction.request) return;
         const curl = generateCurlCommand(transaction.request);
-        navigator.clipboard.writeText(curl).then(() => {
+        copyText(curl).then(() => {
             const btn = event.target;
             const originalText = btn.textContent;
             btn.textContent = '✓ cURL Copied!';
@@ -268,6 +289,11 @@ class DashboardScript {
                 btn.textContent = originalText;
                 btn.style.background = '';
             }, 2000);
+        }).catch(() => {
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = '❌ Failed';
+            setTimeout(() => { btn.textContent = originalText; }, 2000);
         });
     }
 
@@ -590,7 +616,7 @@ class DashboardScript {
                 text = `// ${truncationInfo}\n// Note: This content has been truncated for performance reasons\n\n${text}`;
             }
             
-            navigator.clipboard.writeText(text).then(() => {
+            copyText(text).then(() => {
                 const btn = event.target;
                 const originalText = btn.textContent;
                 const originalBg = btn.style.background;
@@ -773,11 +799,23 @@ class DashboardScript {
             
             const transaction = transactions.get(transactionId);
             
+            // Merged rows retain request fields even after their type changes.
+            if (log.requestTimestamp != null) {
+                transaction.request = {
+                    ...log,
+                    type: 'request',
+                    headers: log.requestHeaders || {},
+                    body: log.requestBody,
+                    timestamp: log.requestTimestamp
+                };
+                transaction.timestamp = log.requestTimestamp;
+            }
+
             // Update transaction with log data
             if (log.type === 'request') {
-                transaction.request = log;
+                transaction.request = transaction.request || {...log, body: log.requestBody ?? log.body};
                 // Use request timestamp as the primary timestamp
-                transaction.timestamp = log.timestamp;
+                transaction.timestamp = log.requestTimestamp || log.timestamp;
                 transaction.method = log.method || transaction.method;
                 transaction.url = log.url || log.uri || transaction.url;
             } else if (log.type === 'response') {
